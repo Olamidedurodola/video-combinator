@@ -226,6 +226,7 @@
     </div>
     <div class="playbar">
       <button id="playBtn" class="primary">▶ Play</button>
+      <button id="pauseBtn">⏸ Pause</button>
       <button id="stopBtn">■ Stop</button>
       <button id="splitBtn" title="Split selected clip at playhead (S)">✂ Split</button>
       <span class="time" id="timeLabel">0:00 / 0:00</span>
@@ -358,6 +359,7 @@
     fadeOut: 0,
     selectedClipId: null,
     playing: false,
+    paused: false,
     exporting: false,
     playhead: 0,
   };
@@ -609,20 +611,40 @@
   function formatTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return `${m}:${sec.toString().padStart(2,"0")}`; }
   function updateTimeLabel(cur) { state.playhead = cur; $("timeLabel").textContent = `${formatTime(cur)} / ${formatTime(totalDur())}`; const total = Math.max(totalDur(), state.bgAudio ? state.bgAudio.duration : 0, 5); $("playhead").style.left = (cur/total*100)+"%"; }
 
-  // click timeline to set playhead
-  function seekToClick(e) {
+  // click + drag on timeline to scrub
+  function drawFrameAtTime(t) {
+    const { clip, localTime } = clipAtGlobal(t);
+    if (clip) {
+      clip.video.currentTime = clip.trimStart + localTime * clip.speed;
+      const onSeeked = () => { drawFrame(clip, t); clip.video.removeEventListener("seeked", onSeeked); };
+      clip.video.addEventListener("seeked", onSeeked);
+    } else {
+      drawPlaceholder();
+    }
+  }
+  function startScrub(e) {
     if (state.playing) return;
     if (e.target.closest(".handle")) return;
+    if (e.target.closest(".tl-clip") && !e.target.classList.contains("tl-clip")) {
+      // allow clicking tl-clip body (which selects) but still scrub
+    }
+    e.preventDefault();
+    if (state.paused === false && state.playhead === 0) state.paused = true; // enable resume
     const track = $("videoTrack"), rect = track.getBoundingClientRect();
     const total = Math.max(totalDur(), state.bgAudio ? state.bgAudio.duration : 0, 5);
-    const t = Math.max(0, Math.min(total, (e.clientX - rect.left) / rect.width * total));
-    updateTimeLabel(t);
-    // draw the frame at this time
-    const { clip, localTime } = clipAtGlobal(t);
-    if (clip) { clip.video.currentTime = clip.trimStart + localTime * clip.speed; setTimeout(() => drawFrame(clip, t), 50); }
+    const scrub = (ev) => {
+      const t = Math.max(0, Math.min(total, (ev.clientX - rect.left) / rect.width * total));
+      updateTimeLabel(t);
+      drawFrameAtTime(t);
+    };
+    scrub(e);
+    const onUp = () => { document.removeEventListener("mousemove", scrub); document.removeEventListener("mouseup", onUp); };
+    document.addEventListener("mousemove", scrub);
+    document.addEventListener("mouseup", onUp);
   }
-  $("videoTrack").addEventListener("click", seekToClick);
-  $("ruler").addEventListener("click", seekToClick);
+  $("videoTrack").addEventListener("mousedown", startScrub);
+  $("audioTrack").addEventListener("mousedown", startScrub);
+  $("ruler").addEventListener("mousedown", startScrub);
 
   function clipAtGlobal(t) {
     let acc = 0;
@@ -636,8 +658,9 @@
 
   // Split at playhead
   function splitAtPlayhead() {
-    if (state.playing) { setStatus("Stop playback before splitting", "err"); return; }
+    if (state.playing) { setStatus("Pause or stop playback before splitting", "err"); return; }
     const t = state.playhead;
+    if (t <= 0) { setStatus("Move playhead to where you want to split", "err"); return; }
     const { clip, localTime, index } = clipAtGlobal(t);
     if (!clip) { setStatus("Playhead is not over a clip", "err"); return; }
     // split point in source seconds
@@ -702,43 +725,68 @@
   // ──────────── Playback ────────────
   $("playBtn").addEventListener("click", async () => {
     if (!state.clips.length || state.playing) return;
-    state.playing = true; setStatus("Playing...");
+    const resuming = state.paused;
+    state.playing = true; state.paused = false;
+    setStatus(resuming ? "Resuming..." : "Playing...");
     await playSequence(false);
-    state.playing = false; setStatus("");
+    state.playing = false;
+    if (!state.paused) { state.playhead = 0; }
+    setStatus("");
   });
-  $("stopBtn").addEventListener("click", () => { state.playing = false; if (state.bgAudio) { state.bgAudio.audio.pause(); state.bgAudio.audio.currentTime = 0; } });
+  $("pauseBtn").addEventListener("click", () => {
+    if (!state.playing) return;
+    state.playing = false; state.paused = true;
+    state.clips.forEach(c => c.video.pause());
+    if (state.bgAudio) state.bgAudio.audio.pause();
+    setStatus("Paused");
+  });
+  $("stopBtn").addEventListener("click", () => {
+    state.playing = false; state.paused = false; state.playhead = 0;
+    state.clips.forEach(c => { c.video.pause(); try { c.video.currentTime = c.trimStart; } catch(e){} });
+    if (state.bgAudio) { state.bgAudio.audio.pause(); state.bgAudio.audio.currentTime = 0; }
+    updateTimeLabel(0); drawPlaceholder(); setStatus("");
+  });
 
   async function playSequence(forExport, onFrame) {
+    const startTime = (!forExport && state.playhead > 0) ? state.playhead : 0;
     let globalTime = 0;
+    let first = true;
     if (state.bgAudio && !forExport) {
-      state.bgAudio.audio.volume = state.bgVol; state.bgAudio.audio.currentTime = 0;
+      state.bgAudio.audio.volume = state.bgVol;
+      state.bgAudio.audio.currentTime = Math.min(startTime, state.bgAudio.duration - 0.1);
       try { await state.bgAudio.audio.play(); } catch(e){}
     }
     for (const clip of state.clips) {
+      const d = effDur(clip);
+      if (first && globalTime + d <= startTime) { globalTime += d; continue; }
       if (!state.playing && !forExport) break;
       const v = clip.video;
-      v.currentTime = clip.trimStart;
+      const localStart = first ? Math.max(0, startTime - globalTime) : 0;
+      first = false;
+      v.currentTime = clip.trimStart + localStart * clip.speed;
       v.playbackRate = clip.speed;
-      v.volume = state.clipVol;
+      if (!forExport) { v.muted = false; v.volume = state.clipVol; }
       try { await v.play(); } catch(e){}
-      const effD = effDur(clip);
-      const start = performance.now();
+      const remaining = d - localStart;
+      const startPerf = performance.now();
       await new Promise((resolve) => {
         const tick = () => {
           if (!state.playing && !forExport) { v.pause(); resolve(); return; }
-          const elapsed = (performance.now() - start)/1000;
-          if (elapsed >= effD || v.currentTime >= clip.trimEnd || v.ended) { v.pause(); resolve(); return; }
-          drawFrame(clip, globalTime + elapsed);
-          updateTimeLabel(globalTime + elapsed);
-          if (onFrame) onFrame(globalTime + elapsed);
+          const elapsed = (performance.now() - startPerf)/1000;
+          if (elapsed >= remaining || v.currentTime >= clip.trimEnd || v.ended) { v.pause(); resolve(); return; }
+          const t = globalTime + localStart + elapsed;
+          drawFrame(clip, t);
+          updateTimeLabel(t);
+          if (onFrame) onFrame(t);
           requestAnimationFrame(tick);
         };
         tick();
       });
-      globalTime += effD;
+      if (!forExport) v.muted = true;
+      globalTime += d;
     }
-    if (state.bgAudio) { state.bgAudio.audio.pause(); state.bgAudio.audio.currentTime = 0; }
-    drawPlaceholder(); updateTimeLabel(0);
+    if (state.bgAudio && !state.paused) { state.bgAudio.audio.pause(); state.bgAudio.audio.currentTime = 0; }
+    if (!state.paused) { drawPlaceholder(); updateTimeLabel(0); }
   }
 
   // ──────────── Export ────────────
