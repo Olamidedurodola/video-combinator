@@ -99,7 +99,9 @@
   .timeline-ruler .tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); padding-left: 3px; font-variant-numeric: tabular-nums; }
   .track-label { color: var(--muted); font-size: 11px; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; }
   .track { position: relative; height: 48px; background: var(--panel-2); border-radius: 6px; overflow: hidden; }
-  .track.audio-track { height: 32px; margin-top: 6px; }
+  .track.audio-track { height: 40px; margin-top: 6px; position: relative; }
+  .tl-audio-clip.linked { background: linear-gradient(135deg, rgba(124,92,255,0.35), rgba(76,201,240,0.25)); border-color: var(--accent); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 8px; }
+  .tl-audio-clip.bg-music { background: linear-gradient(135deg, rgba(61,220,151,0.5), rgba(61,220,151,0.3)); }
   .tl-clip { position: absolute; top: 2px; bottom: 2px; background: linear-gradient(135deg, rgba(124,92,255,0.6), rgba(76,201,240,0.6)); border: 1px solid var(--accent); border-radius: 5px; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 14px; user-select: none; }
   .tl-clip.selected { border-color: var(--accent-2); box-shadow: 0 0 0 2px rgba(76,201,240,0.3); }
   .tl-clip .handle { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: rgba(255,255,255,0.2); }
@@ -225,6 +227,7 @@
     <div class="playbar">
       <button id="playBtn" class="primary">▶ Play</button>
       <button id="stopBtn">■ Stop</button>
+      <button id="splitBtn" title="Split selected clip at playhead (S)">✂ Split</button>
       <span class="time" id="timeLabel">0:00 / 0:00</span>
       <div class="spacer"></div>
       <select id="fpsSel" title="FPS"><option value="24">24fps</option><option value="30" selected>30fps</option><option value="60">60fps</option></select>
@@ -356,6 +359,7 @@
     selectedClipId: null,
     playing: false,
     exporting: false,
+    playhead: 0,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -552,14 +556,33 @@
       el.querySelectorAll(".handle").forEach(h => h.addEventListener("mousedown", (ev) => startTrimDrag(ev, c, h.dataset.trim, total)));
       acc += d;
     });
-    // audio
+    // per-clip linked audio (mirror video clips)
+    let aAcc = 0;
+    state.clips.forEach(c => {
+      const d = effDur(c);
+      const a = document.createElement("div");
+      a.className = "tl-audio-clip linked";
+      a.style.position = "absolute";
+      a.style.left = (aAcc/total*100)+"%";
+      a.style.width = (d/total*100)+"%";
+      a.style.right = "auto";
+      a.textContent = `🔊 ${c.name}`;
+      a.title = `Linked audio · ${d.toFixed(1)}s`;
+      at.appendChild(a);
+      aAcc += d;
+    });
+    // background music (separate row style — overlay on top)
     if (state.bgAudio) {
-      const a = document.createElement("div"); a.className = "tl-audio-clip";
+      const a = document.createElement("div"); a.className = "tl-audio-clip bg-music";
+      a.style.position = "absolute";
+      a.style.left = "0";
       a.style.width = Math.min(100, state.bgAudio.duration/total*100)+"%";
+      a.style.top = "50%"; a.style.bottom = "auto"; a.style.height = "14px";
+      a.style.opacity = "0.75";
       a.textContent = `🎵 ${state.bgAudio.file.name}`;
       at.appendChild(a);
     }
-    updateTimeLabel(0);
+    updateTimeLabel(state.playhead || 0);
   }
 
   function startTrimDrag(ev, clip, side, total) {
@@ -584,7 +607,57 @@
   }
 
   function formatTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return `${m}:${sec.toString().padStart(2,"0")}`; }
-  function updateTimeLabel(cur) { $("timeLabel").textContent = `${formatTime(cur)} / ${formatTime(totalDur())}`; const total = Math.max(totalDur(), state.bgAudio ? state.bgAudio.duration : 0, 5); $("playhead").style.left = (cur/total*100)+"%"; }
+  function updateTimeLabel(cur) { state.playhead = cur; $("timeLabel").textContent = `${formatTime(cur)} / ${formatTime(totalDur())}`; const total = Math.max(totalDur(), state.bgAudio ? state.bgAudio.duration : 0, 5); $("playhead").style.left = (cur/total*100)+"%"; }
+
+  // click timeline to set playhead
+  function seekToClick(e) {
+    if (state.playing) return;
+    if (e.target.closest(".handle")) return;
+    const track = $("videoTrack"), rect = track.getBoundingClientRect();
+    const total = Math.max(totalDur(), state.bgAudio ? state.bgAudio.duration : 0, 5);
+    const t = Math.max(0, Math.min(total, (e.clientX - rect.left) / rect.width * total));
+    updateTimeLabel(t);
+    // draw the frame at this time
+    const { clip, localTime } = clipAtGlobal(t);
+    if (clip) { clip.video.currentTime = clip.trimStart + localTime * clip.speed; setTimeout(() => drawFrame(clip, t), 50); }
+  }
+  $("videoTrack").addEventListener("click", seekToClick);
+  $("ruler").addEventListener("click", seekToClick);
+
+  function clipAtGlobal(t) {
+    let acc = 0;
+    for (const c of state.clips) {
+      const d = effDur(c);
+      if (t >= acc && t < acc + d) return { clip: c, localTime: t - acc, index: state.clips.indexOf(c) };
+      acc += d;
+    }
+    return { clip: null, localTime: 0, index: -1 };
+  }
+
+  // Split at playhead
+  function splitAtPlayhead() {
+    if (state.playing) { setStatus("Stop playback before splitting", "err"); return; }
+    const t = state.playhead;
+    const { clip, localTime, index } = clipAtGlobal(t);
+    if (!clip) { setStatus("Playhead is not over a clip", "err"); return; }
+    // split point in source seconds
+    const splitSrc = clip.trimStart + localTime * clip.speed;
+    if (splitSrc <= clip.trimStart + 0.1 || splitSrc >= clip.trimEnd - 0.1) { setStatus("Playhead too close to clip edge", "err"); return; }
+    const right = { ...clip, id: crypto.randomUUID(), trimStart: splitSrc, trimEnd: clip.trimEnd };
+    // clone a fresh <video> for the right half so they don't share state
+    const v2 = document.createElement("video");
+    v2.src = clip.url; v2.muted = true; v2.playsInline = true; v2.preload = "auto";
+    right.video = v2;
+    clip.trimEnd = splitSrc;
+    state.clips.splice(index + 1, 0, right);
+    setStatus("Split into two clips", "ok");
+    renderAll();
+  }
+  $("splitBtn").addEventListener("click", splitAtPlayhead);
+  document.addEventListener("keydown", (e) => {
+    if (e.target.matches("input, textarea, select")) return;
+    if (e.key === "s" || e.key === "S") { e.preventDefault(); splitAtPlayhead(); }
+  });
 
   function renderAll() { renderClipList(); renderTexts(); renderTimeline(); renderSelectedPanel(); drawPlaceholder(); }
 
