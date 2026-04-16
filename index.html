@@ -18,15 +18,105 @@
     --border: #2a2c5a;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-  header { padding: 20px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-  header h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; overflow-x: hidden; }
+  header { padding: 14px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: .5px; }
   header h1 span { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  header .sub { color: var(--muted); font-size: 13px; }
-  .links a { color: var(--accent-2); text-decoration: none; margin-left: 14px; font-size: 13px; cursor: pointer; background: none; border: none; font-family: inherit; }
-  .links a:hover { text-decoration: underline; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .links a, .links button { color: var(--accent-2); text-decoration: none; margin-left: 14px; font-size: 13px; cursor: pointer; background: none; border: none; font-family: inherit; }
+  .links a:hover, .links button:hover { text-decoration: underline; }
 
-  /* Jakpar footer + modal */
+  .app { display: grid; grid-template-columns: 72px 260px 1fr 300px; grid-template-rows: 1fr auto; height: calc(100vh - 55px); gap: 0; }
+  @media (max-width: 1200px) { .app { grid-template-columns: 72px 240px 1fr 260px; } }
+  @media (max-width: 900px) { .app { display: block; height: auto; } .app > * { display: block !important; } }
+
+  /* Left rail (icon tabs) */
+  .rail { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 10px 6px; gap: 4px; grid-row: 1 / 3; }
+  .rail button { background: none; border: none; color: var(--muted); padding: 10px 6px; border-radius: 10px; cursor: pointer; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all .15s; font-family: inherit; }
+  .rail button:hover { background: var(--panel-2); color: var(--text); }
+  .rail button.active { background: var(--panel-2); color: var(--accent-2); }
+  .rail .icon { font-size: 20px; line-height: 1; }
+
+  /* Left panel (context for selected rail tab) */
+  .leftpanel { background: var(--panel); border-right: 1px solid var(--border); padding: 14px; overflow-y: auto; }
+  .leftpanel h3 { margin: 0 0 10px 0; font-size: 14px; }
+  .leftpanel .hint { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  .tabpane { display: none; }
+  .tabpane.active { display: block; }
+
+  .drop { border: 2px dashed var(--border); border-radius: 12px; padding: 20px; text-align: center; color: var(--muted); cursor: pointer; transition: all .15s ease; }
+  .drop:hover, .drop.drag { border-color: var(--accent); color: var(--text); background: var(--panel-2); }
+  .drop input { display: none; }
+
+  button, select, input[type="text"], input[type="number"] { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit; }
+  button { cursor: pointer; transition: background .15s ease; }
+  button:hover { background: #2a2c66; }
+  button.primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); border: none; color: white; font-weight: 600; }
+  button.primary:disabled { opacity: .5; cursor: not-allowed; }
+  button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+
+  .clip-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .clip { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px; display: grid; grid-template-columns: 50px 1fr auto; gap: 8px; align-items: center; }
+  .clip.selected { border-color: var(--accent); }
+  .clip video { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; background: black; }
+  .clip .meta { font-size: 11px; overflow: hidden; }
+  .clip .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .clip .details { color: var(--muted); margin-top: 2px; font-size: 10px; }
+  .clip .actions { display: flex; flex-direction: column; gap: 3px; }
+  .clip .actions button { padding: 3px 6px; font-size: 10px; }
+
+  /* Center stage */
+  .stage { display: flex; flex-direction: column; padding: 14px; min-width: 0; overflow: hidden; }
+  .preview-wrap { flex: 1; background: black; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 300px; }
+  .preview-wrap canvas { max-width: 100%; max-height: 100%; }
+
+  .playbar { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+  .playbar .time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .playbar .spacer { flex: 1; }
+  .playbar button { padding: 7px 12px; }
+
+  /* Right panel */
+  .rightpanel { background: var(--panel); border-left: 1px solid var(--border); padding: 14px; overflow-y: auto; }
+  .rightpanel h3 { margin: 0 0 10px 0; font-size: 14px; }
+  .rightpanel .field { margin-bottom: 10px; }
+  .rightpanel label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .rightpanel input[type="range"] { width: 100%; }
+  .rightpanel input[type="number"], .rightpanel select, .rightpanel input[type="text"], .rightpanel input[type="color"] { width: 100%; }
+  .range-row { display: flex; align-items: center; gap: 8px; }
+  .range-row input[type="range"] { flex: 1; }
+  .range-row .val { color: var(--muted); font-size: 11px; min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .frame-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .frame-btns button.active { background: linear-gradient(90deg, var(--accent), var(--accent-2)); border: none; color: white; }
+
+  .text-overlay-item { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px; margin-bottom: 8px; font-size: 12px; }
+  .text-overlay-item .row { display: flex; gap: 6px; margin-top: 4px; }
+  .text-overlay-item input, .text-overlay-item select { flex: 1; min-width: 0; font-size: 11px; padding: 4px 6px; }
+
+  /* Timeline */
+  .timeline-wrap { grid-column: 2 / 5; background: var(--panel); border-top: 1px solid var(--border); padding: 10px 14px 14px; }
+  .timeline-ruler { position: relative; height: 20px; color: var(--muted); font-size: 10px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+  .timeline-ruler .tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); padding-left: 3px; font-variant-numeric: tabular-nums; }
+  .track-label { color: var(--muted); font-size: 11px; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; }
+  .track { position: relative; height: 48px; background: var(--panel-2); border-radius: 6px; overflow: hidden; }
+  .track.audio-track { height: 32px; margin-top: 6px; }
+  .tl-clip { position: absolute; top: 2px; bottom: 2px; background: linear-gradient(135deg, rgba(124,92,255,0.6), rgba(76,201,240,0.6)); border: 1px solid var(--accent); border-radius: 5px; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 14px; user-select: none; }
+  .tl-clip.selected { border-color: var(--accent-2); box-shadow: 0 0 0 2px rgba(76,201,240,0.3); }
+  .tl-clip .handle { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: rgba(255,255,255,0.2); }
+  .tl-clip .handle.left { left: 0; border-radius: 5px 0 0 5px; }
+  .tl-clip .handle.right { right: 0; border-radius: 0 5px 5px 0; }
+  .tl-clip .handle:hover { background: rgba(255,255,255,0.4); }
+  .tl-audio-clip { position: absolute; top: 2px; bottom: 2px; left: 0; right: 0; background: linear-gradient(135deg, rgba(61,220,151,0.4), rgba(61,220,151,0.25)); border: 1px solid var(--ok); border-radius: 5px; padding: 0 8px; color: var(--ok); font-size: 11px; display: flex; align-items: center; }
+  .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--danger); pointer-events: none; z-index: 10; }
+
+  .progress { width: 100%; height: 6px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 8px; display: none; }
+  .progress.active { display: block; }
+  .progress .bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); width: 0%; transition: width .2s; }
+  .status { margin-top: 6px; font-size: 12px; color: var(--muted); min-height: 16px; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--danger); }
+
+  footer { text-align: center; padding: 12px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
   .jakpar-trigger { background: none; border: none; color: var(--accent-2); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font-family: inherit; font-size: inherit; padding: 0; }
   .jakpar-trigger:hover { color: var(--accent); }
 
@@ -44,73 +134,10 @@
   .modal .see-work:hover { color: var(--text); }
   .modal .err { color: var(--danger); font-size: 12px; margin-top: 8px; }
   .modal .success { text-align: center; padding: 10px 0; }
-  .modal .success .check { font-size: 42px; color: var(--ok); }
+  .modal .check { font-size: 42px; color: var(--ok); }
   .modal .close-x { float: right; background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 0; line-height: 1; }
   .modal .close-x:hover { color: var(--text); }
   .field-row { margin-bottom: 10px; }
-
-  main { display: grid; grid-template-columns: 340px 1fr 320px; gap: 16px; padding: 16px; min-height: calc(100vh - 70px); }
-  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
-
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
-  .panel h3 { margin: 0 0 10px 0; font-size: 15px; color: var(--text); }
-  .panel .hint { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
-
-  .drop {
-    border: 2px dashed var(--border); border-radius: 12px; padding: 22px; text-align: center; color: var(--muted);
-    cursor: pointer; transition: all .15s ease;
-  }
-  .drop:hover, .drop.drag { border-color: var(--accent); color: var(--text); background: var(--panel-2); }
-  .drop input { display: none; }
-
-  button, select, input[type="text"], input[type="number"] {
-    background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px;
-  }
-  button { cursor: pointer; transition: background .15s ease; }
-  button:hover { background: #2a2c66; }
-  button.primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); border: none; color: white; font-weight: 600; }
-  button.primary:disabled { opacity: .5; cursor: not-allowed; }
-  button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
-
-  .clip-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-height: 55vh; overflow-y: auto; }
-  .clip {
-    background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; display: grid; grid-template-columns: 60px 1fr auto; gap: 10px; align-items: center;
-  }
-  .clip video { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; background: black; }
-  .clip .meta { font-size: 12px; }
-  .clip .meta .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
-  .clip .meta .details { color: var(--muted); margin-top: 2px; }
-  .clip .actions { display: flex; flex-direction: column; gap: 4px; }
-  .clip .actions button { padding: 4px 8px; font-size: 11px; }
-
-  .stage { display: flex; flex-direction: column; gap: 10px; }
-  .preview-wrap { background: black; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; aspect-ratio: 16/9; max-height: 60vh; }
-  .preview-wrap canvas { max-width: 100%; max-height: 100%; }
-
-  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  .controls .group { display: flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--border); padding: 6px 10px; border-radius: 10px; }
-  .controls label { color: var(--muted); font-size: 12px; }
-
-  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
-  .field label { font-size: 12px; color: var(--muted); }
-
-  .text-overlay-item { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px; margin-bottom: 8px; font-size: 12px; }
-  .text-overlay-item .row { display: flex; gap: 6px; margin-top: 4px; }
-  .text-overlay-item input, .text-overlay-item select { flex: 1; min-width: 0; font-size: 11px; padding: 4px 6px; }
-
-  .progress { width: 100%; height: 6px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 8px; display: none; }
-  .progress.active { display: block; }
-  .progress .bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); width: 0%; transition: width .2s; }
-
-  .status { margin-top: 8px; font-size: 12px; color: var(--muted); min-height: 16px; }
-  .status.ok { color: var(--ok); }
-  .status.err { color: var(--danger); }
-
-  .frame-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-  .frame-btns button.active { background: linear-gradient(90deg, var(--accent), var(--accent-2)); border: none; color: white; }
-
-  footer { text-align: center; padding: 18px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
-  footer a { color: var(--accent-2); text-decoration: none; }
 </style>
 </head>
 <body>
@@ -118,86 +145,128 @@
 <header>
   <div>
     <h1><span>Video Combinator</span></h1>
-    <div class="sub">Merge short videos, adjust speed, add text, reframe for social — all in your browser.</div>
+    <div class="sub">Merge, trim, filter, and export short videos — all in your browser.</div>
   </div>
   <div class="links">
-    <button class="jakpar-trigger" id="aboutLink" style="color: var(--accent-2); font-weight: normal; text-decoration: none;">About</button>
+    <button id="aboutLink">About</button>
   </div>
 </header>
 
-<main>
-  <!-- LEFT: Library -->
-  <section class="panel">
-    <h3>1. Add clips</h3>
-    <label class="drop" id="drop">
-      <input type="file" id="fileInput" accept="video/*" multiple />
-      <div><strong>Drop videos here</strong><br/>or click to browse</div>
-      <div style="font-size:11px; margin-top:6px;">MP4 / WebM / MOV — processed locally, never uploaded</div>
-    </label>
-    <div class="clip-list" id="clipList"></div>
-  </section>
+<div class="app">
+  <!-- Rail -->
+  <aside class="rail" id="rail">
+    <button data-tab="media" class="active"><span class="icon">📥</span>My media</button>
+    <button data-tab="text"><span class="icon">T</span>Text</button>
+    <button data-tab="audio"><span class="icon">🎵</span>Audio</button>
+    <button data-tab="frame"><span class="icon">📱</span>Frame</button>
+  </aside>
 
-  <!-- CENTER: Preview + export -->
-  <section class="stage">
-    <div class="panel">
-      <h3>2. Preview</h3>
-      <div class="preview-wrap" id="previewWrap">
-        <canvas id="preview" width="1280" height="720"></canvas>
-      </div>
-      <div class="controls" style="margin-top:10px;">
-        <button id="playBtn" class="primary">▶ Play Preview</button>
-        <button id="stopBtn">■ Stop</button>
-        <div class="group">
-          <label>FPS</label>
-          <select id="fpsSel">
-            <option value="24">24</option>
-            <option value="30" selected>30</option>
-            <option value="60">60</option>
-          </select>
-        </div>
-        <div class="group">
-          <label>Quality</label>
-          <select id="qualitySel">
-            <option value="2500000">Low</option>
-            <option value="5000000" selected>Medium</option>
-            <option value="8000000">High</option>
-          </select>
-        </div>
-        <button id="exportBtn" class="primary">⬇ Export & Download</button>
-      </div>
-      <div class="progress" id="progress"><div class="bar" id="progressBar"></div></div>
-      <div class="status" id="status"></div>
+  <!-- Left panel -->
+  <aside class="leftpanel">
+    <div class="tabpane active" id="tab-media">
+      <h3>My media</h3>
+      <label class="drop" id="drop">
+        <input type="file" id="fileInput" accept="video/*" multiple />
+        <div><strong>Import media</strong><br/>drop or click</div>
+        <div style="font-size:11px; margin-top:4px;">Processed locally</div>
+      </label>
+      <div class="clip-list" id="clipList"></div>
     </div>
-  </section>
 
-  <!-- RIGHT: Options -->
-  <section class="panel">
-    <h3>3. Frame for social</h3>
-    <div class="hint">Choose aspect ratio & resolution</div>
-    <div class="frame-btns" id="frameBtns">
-      <button data-w="1080" data-h="1920" data-label="TikTok / Reels 9:16">TikTok 9:16</button>
-      <button data-w="1080" data-h="1080" data-label="Instagram 1:1">Instagram 1:1</button>
-      <button data-w="1920" data-h="1080" data-label="YouTube 16:9" class="active">YouTube 16:9</button>
-      <button data-w="1080" data-h="1350" data-label="IG Portrait 4:5">IG Portrait 4:5</button>
+    <div class="tabpane" id="tab-text">
+      <h3>Text overlays</h3>
+      <div class="hint">Timed text on the merged video</div>
+      <div id="textList"></div>
+      <button id="addTextBtn">+ Add text overlay</button>
     </div>
+
+    <div class="tabpane" id="tab-audio">
+      <h3>Background audio</h3>
+      <div class="hint">Adds music over the full video (mixes with originals)</div>
+      <label class="drop" id="audioDrop">
+        <input type="file" id="audioInput" accept="audio/*" />
+        <div><strong>Import audio</strong></div>
+        <div style="font-size:11px; margin-top:4px;">MP3, WAV, M4A</div>
+      </label>
+      <div id="audioInfo" style="margin-top:10px; font-size:12px; color:var(--muted);"></div>
+      <div class="field" style="margin-top:10px;">
+        <label>Background volume</label>
+        <div class="range-row"><input type="range" id="bgVol" min="0" max="1" step="0.05" value="0.5"/><span class="val" id="bgVolVal">50%</span></div>
+      </div>
+      <div class="field">
+        <label>Original clip volume</label>
+        <div class="range-row"><input type="range" id="clipVol" min="0" max="1" step="0.05" value="1"/><span class="val" id="clipVolVal">100%</span></div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="tab-frame">
+      <h3>Frame for social</h3>
+      <div class="frame-btns" id="frameBtns">
+        <button data-w="1080" data-h="1920" data-label="TikTok-9x16">TikTok 9:16</button>
+        <button data-w="1080" data-h="1080" data-label="Instagram-1x1">Instagram 1:1</button>
+        <button data-w="1920" data-h="1080" data-label="YouTube-16x9" class="active">YouTube 16:9</button>
+        <button data-w="1080" data-h="1350" data-label="IG-4x5">IG Portrait 4:5</button>
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label><input type="checkbox" id="fitCover" checked /> Cover frame (crop to fill)</label>
+      </div>
+      <div class="field">
+        <label>Background color</label>
+        <input type="color" id="bgColor" value="#000000" />
+      </div>
+    </div>
+  </aside>
+
+  <!-- Center stage -->
+  <main class="stage">
+    <div class="preview-wrap" id="previewWrap">
+      <canvas id="preview" width="1280" height="720"></canvas>
+    </div>
+    <div class="playbar">
+      <button id="playBtn" class="primary">▶ Play</button>
+      <button id="stopBtn">■ Stop</button>
+      <span class="time" id="timeLabel">0:00 / 0:00</span>
+      <div class="spacer"></div>
+      <select id="fpsSel" title="FPS"><option value="24">24fps</option><option value="30" selected>30fps</option><option value="60">60fps</option></select>
+      <select id="qualitySel" title="Quality"><option value="2500000">Low</option><option value="5000000" selected>Medium</option><option value="8000000">High</option></select>
+      <button id="exportBtn" class="primary">⬇ Export</button>
+    </div>
+    <div class="progress" id="progress"><div class="bar" id="progressBar"></div></div>
+    <div class="status" id="status"></div>
+  </main>
+
+  <!-- Right panel: effects -->
+  <aside class="rightpanel">
+    <h3>Filters</h3>
+    <div class="field"><label>Brightness</label><div class="range-row"><input type="range" id="fBrightness" min="0" max="200" value="100"/><span class="val" id="fBrightnessVal">100%</span></div></div>
+    <div class="field"><label>Contrast</label><div class="range-row"><input type="range" id="fContrast" min="0" max="200" value="100"/><span class="val" id="fContrastVal">100%</span></div></div>
+    <div class="field"><label>Saturation</label><div class="range-row"><input type="range" id="fSaturate" min="0" max="200" value="100"/><span class="val" id="fSaturateVal">100%</span></div></div>
+    <div class="field"><label>Grayscale</label><div class="range-row"><input type="range" id="fGray" min="0" max="100" value="0"/><span class="val" id="fGrayVal">0%</span></div></div>
+    <div class="field"><label>Sepia</label><div class="range-row"><input type="range" id="fSepia" min="0" max="100" value="0"/><span class="val" id="fSepiaVal">0%</span></div></div>
+    <div class="field"><label>Blur (px)</label><div class="range-row"><input type="range" id="fBlur" min="0" max="20" value="0"/><span class="val" id="fBlurVal">0</span></div></div>
+    <button id="resetFilters" style="width:100%;">Reset filters</button>
 
     <div style="height:14px"></div>
-    <h3>4. Text overlays</h3>
-    <div class="hint">Text appears across the full merged video</div>
-    <div id="textList"></div>
-    <button id="addTextBtn">+ Add text overlay</button>
+    <h3>Fade</h3>
+    <div class="field"><label>Fade in (s)</label><div class="range-row"><input type="range" id="fadeIn" min="0" max="5" step="0.1" value="0"/><span class="val" id="fadeInVal">0.0s</span></div></div>
+    <div class="field"><label>Fade out (s)</label><div class="range-row"><input type="range" id="fadeOut" min="0" max="5" step="0.1" value="0"/><span class="val" id="fadeOutVal">0.0s</span></div></div>
 
     <div style="height:14px"></div>
-    <h3>Options</h3>
-    <div class="field">
-      <label><input type="checkbox" id="fitCover" checked /> Cover frame (crop to fill)</label>
+    <h3>Selected clip</h3>
+    <div id="selectedClipPanel" class="hint" style="color:var(--muted); font-size:12px;">Click a clip in the timeline to edit trim & speed.</div>
+  </aside>
+
+  <!-- Timeline -->
+  <section class="timeline-wrap">
+    <div class="track-label">Video</div>
+    <div class="timeline-ruler" id="ruler"></div>
+    <div class="track" id="videoTrack">
+      <div class="playhead" id="playhead" style="left:0px;"></div>
     </div>
-    <div class="field">
-      <label>Background color</label>
-      <input type="color" id="bgColor" value="#000000" />
-    </div>
+    <div class="track-label" style="margin-top:8px;">🎵 Audio</div>
+    <div class="track audio-track" id="audioTrack"></div>
   </section>
-</main>
+</div>
 
 <footer>
   Developed by <button class="jakpar-trigger" id="jakparTrigger">Jakpar</button>
@@ -246,112 +315,79 @@
 
 <script>
 (() => {
+  // ──────────── Jakpar modal ────────────
   const WEB3FORMS_ACCESS_KEY = "6b408c0a-c86d-4ea9-bfab-52aca6d54205";
   const RECIPIENT_EMAIL = "ola@jakpar.com";
   const SUBJECT_LINE = "Website Enquiry via Video Combinator";
-
-  const modal = document.getElementById("jakparModal");
-  const openBtns = [document.getElementById("jakparTrigger"), document.getElementById("aboutLink")];
-  const closeBtn = document.getElementById("jakparClose");
-  const form = document.getElementById("jakparFormEl");
-  const submitBtn = document.getElementById("jakparSubmit");
-  const errEl = document.getElementById("jakparErr");
-  const formWrap = document.getElementById("jakparForm");
-  const successWrap = document.getElementById("jakparSuccess");
-  const successClose = document.getElementById("jakparSuccessClose");
-
-  function openModal() {
-    formWrap.style.display = "";
-    successWrap.style.display = "none";
-    errEl.style.display = "none";
-    form.reset();
-    submitBtn.disabled = false;
-    submitBtn.textContent = "Send message";
-    modal.classList.add("open");
-  }
-  function closeModal() { modal.classList.remove("open"); }
-
-  openBtns.forEach(b => b && b.addEventListener("click", (e) => { e.preventDefault(); openModal(); }));
-  closeBtn.addEventListener("click", closeModal);
-  successClose.addEventListener("click", closeModal);
-  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    errEl.style.display = "none";
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Sending…";
-    const name = document.getElementById("jk-name").value;
-    const email = document.getElementById("jk-email").value;
-    const message = document.getElementById("jk-message").value;
+  const jkModal = document.getElementById("jakparModal");
+  const jkForm = document.getElementById("jakparFormEl");
+  const jkSubmit = document.getElementById("jakparSubmit");
+  const jkErr = document.getElementById("jakparErr");
+  const jkFormWrap = document.getElementById("jakparForm");
+  const jkSuccess = document.getElementById("jakparSuccess");
+  function openJk() { jkFormWrap.style.display=""; jkSuccess.style.display="none"; jkErr.style.display="none"; jkForm.reset(); jkSubmit.disabled=false; jkSubmit.textContent="Send message"; jkModal.classList.add("open"); }
+  function closeJk() { jkModal.classList.remove("open"); }
+  [document.getElementById("jakparTrigger"), document.getElementById("aboutLink")].forEach(b => b.addEventListener("click", (e) => { e.preventDefault(); openJk(); }));
+  document.getElementById("jakparClose").addEventListener("click", closeJk);
+  document.getElementById("jakparSuccessClose").addEventListener("click", closeJk);
+  jkModal.addEventListener("click", (e) => { if (e.target === jkModal) closeJk(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeJk(); });
+  jkForm.addEventListener("submit", async (e) => {
+    e.preventDefault(); jkErr.style.display="none"; jkSubmit.disabled=true; jkSubmit.textContent="Sending…";
+    const name = document.getElementById("jk-name").value, email = document.getElementById("jk-email").value, message = document.getElementById("jk-message").value;
     try {
-      const res = await fetch("https://api.web3forms.com/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          access_key: WEB3FORMS_ACCESS_KEY,
-          subject: SUBJECT_LINE,
-          from_name: name,
-          email: RECIPIENT_EMAIL,
-          replyto: email,
-          message: `Name: ${name}\nEmail: ${email}\n\n${message}`,
-        }),
-      });
+      const res = await fetch("https://api.web3forms.com/submit", { method:"POST", headers:{"Content-Type":"application/json",Accept:"application/json"}, body: JSON.stringify({ access_key: WEB3FORMS_ACCESS_KEY, subject: SUBJECT_LINE, from_name: name, email: RECIPIENT_EMAIL, replyto: email, message: `Name: ${name}\nEmail: ${email}\n\n${message}` }) });
       const json = await res.json();
-      if (json.success) {
-        formWrap.style.display = "none";
-        successWrap.style.display = "";
-      } else {
-        throw new Error(json.message || "Submission failed");
-      }
-    } catch (err) {
-      errEl.textContent = err.message || "Something went wrong. Please try again.";
-      errEl.style.display = "";
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Send message";
-    }
+      if (json.success) { jkFormWrap.style.display="none"; jkSuccess.style.display=""; } else throw new Error(json.message || "Submission failed");
+    } catch (err) { jkErr.textContent = err.message || "Something went wrong."; jkErr.style.display=""; jkSubmit.disabled=false; jkSubmit.textContent="Send message"; }
   });
-})();
-</script>
 
-<script>
-(() => {
+  // ──────────── App state ────────────
   const state = {
-    clips: [], // { id, file, url, video, duration, speed, name }
-    texts: [], // { text, start, end, size, color, pos }
-    frame: { w: 1920, h: 1080, label: "YouTube 16:9" },
+    clips: [],
+    texts: [],
+    bgAudio: null, // { file, url, audio, duration }
+    bgVol: 0.5,
+    clipVol: 1,
+    frame: { w: 1920, h: 1080, label: "YouTube-16x9" },
+    filters: { brightness: 100, contrast: 100, saturate: 100, grayscale: 0, sepia: 0, blur: 0 },
+    fadeIn: 0,
+    fadeOut: 0,
+    selectedClipId: null,
     playing: false,
     exporting: false,
   };
 
   const $ = (id) => document.getElementById(id);
-  const canvas = $("preview");
-  const ctx = canvas.getContext("2d");
+  const canvas = $("preview"), ctx = canvas.getContext("2d");
 
-  function resizeCanvas() {
-    canvas.width = state.frame.w;
-    canvas.height = state.frame.h;
-    drawPlaceholder();
+  // ──────────── Tabs ────────────
+  document.querySelectorAll("#rail button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("#rail button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    document.querySelectorAll(".tabpane").forEach(p => p.classList.remove("active"));
+    $("tab-" + b.dataset.tab).classList.add("active");
+  }));
+
+  // ──────────── Canvas ────────────
+  function filterStr() {
+    const f = state.filters;
+    return `brightness(${f.brightness}%) contrast(${f.contrast}%) saturate(${f.saturate}%) grayscale(${f.grayscale}%) sepia(${f.sepia}%) blur(${f.blur}px)`;
   }
-
+  function resizeCanvas() { canvas.width = state.frame.w; canvas.height = state.frame.h; drawPlaceholder(); }
   function drawPlaceholder() {
-    ctx.fillStyle = $("bgColor").value;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#9aa0c5";
-    ctx.font = `${Math.floor(canvas.height / 20)}px system-ui`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(state.clips.length ? "Press ▶ Play Preview" : "Add clips to begin", canvas.width / 2, canvas.height / 2);
+    ctx.filter = "none";
+    ctx.fillStyle = $("bgColor").value; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "#9aa0c5"; ctx.font = `${Math.floor(canvas.height/20)}px system-ui`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(state.clips.length ? "Press ▶ Play" : "Import media to begin", canvas.width/2, canvas.height/2);
   }
 
-  // ---------- File upload ----------
-  const drop = $("drop");
-  const fileInput = $("fileInput");
+  // ──────────── Files ────────────
+  const drop = $("drop"), fileInput = $("fileInput");
   drop.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
-  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
-  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
+  ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
+  ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
   drop.addEventListener("drop", (e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); });
 
   async function handleFiles(files) {
@@ -359,112 +395,105 @@
       if (!f.type.startsWith("video/")) continue;
       const url = URL.createObjectURL(f);
       const video = document.createElement("video");
-      video.src = url;
-      video.muted = true;
-      video.playsInline = true;
-      video.preload = "auto";
-      await new Promise((res, rej) => {
-        video.onloadedmetadata = res;
-        video.onerror = () => rej(new Error("Cannot load " + f.name));
-      });
-      state.clips.push({
-        id: crypto.randomUUID(),
-        file: f,
-        url,
-        video,
-        duration: video.duration,
-        speed: 1,
-        name: f.name,
-      });
+      video.src = url; video.muted = true; video.playsInline = true; video.preload = "auto";
+      await new Promise((res, rej) => { video.onloadedmetadata = res; video.onerror = () => rej(new Error("Cannot load " + f.name)); });
+      state.clips.push({ id: crypto.randomUUID(), file: f, url, video, duration: video.duration, trimStart: 0, trimEnd: video.duration, speed: 1, name: f.name });
     }
-    renderClipList();
-    drawPlaceholder();
+    renderAll();
   }
 
+  // ──────────── Audio ────────────
+  const audioDrop = $("audioDrop"), audioInput = $("audioInput");
+  audioDrop.addEventListener("click", () => audioInput.click());
+  audioInput.addEventListener("change", async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const url = URL.createObjectURL(f);
+    const audio = new Audio(url); audio.preload = "auto";
+    await new Promise((res, rej) => { audio.onloadedmetadata = res; audio.onerror = () => rej(); });
+    state.bgAudio = { file: f, url, audio, duration: audio.duration };
+    $("audioInfo").textContent = `🎵 ${f.name} · ${audio.duration.toFixed(1)}s`;
+    renderTimeline();
+  });
+  $("bgVol").addEventListener("input", (e) => { state.bgVol = parseFloat(e.target.value); $("bgVolVal").textContent = Math.round(state.bgVol*100)+"%"; });
+  $("clipVol").addEventListener("input", (e) => { state.clipVol = parseFloat(e.target.value); $("clipVolVal").textContent = Math.round(state.clipVol*100)+"%"; });
+
+  // ──────────── Clip list ────────────
   function renderClipList() {
-    const list = $("clipList");
-    list.innerHTML = "";
+    const list = $("clipList"); list.innerHTML = "";
     state.clips.forEach((c, i) => {
       const el = document.createElement("div");
-      el.className = "clip";
+      el.className = "clip" + (c.id === state.selectedClipId ? " selected" : "");
       el.innerHTML = `
         <video src="${c.url}" muted></video>
-        <div class="meta">
-          <div class="name" title="${c.name}">${c.name}</div>
-          <div class="details">${c.duration.toFixed(1)}s · ${(c.file.size/1024/1024).toFixed(1)}MB</div>
-          <div style="margin-top:4px; display:flex; align-items:center; gap:4px;">
-            <label style="font-size:11px; color:var(--muted)">Speed</label>
-            <select data-id="${c.id}" class="speed-sel">
-              <option value="0.5">0.5×</option>
-              <option value="0.75">0.75×</option>
-              <option value="1" selected>1×</option>
-              <option value="1.25">1.25×</option>
-              <option value="1.5">1.5×</option>
-              <option value="2">2×</option>
-              <option value="3">3×</option>
-            </select>
-          </div>
-        </div>
+        <div class="meta"><div class="name" title="${c.name}">${c.name}</div><div class="details">${effDur(c).toFixed(1)}s · ${(c.file.size/1024/1024).toFixed(1)}MB</div></div>
         <div class="actions">
           <button data-up="${c.id}" ${i===0?"disabled":""}>▲</button>
           <button data-down="${c.id}" ${i===state.clips.length-1?"disabled":""}>▼</button>
           <button class="danger" data-del="${c.id}">✕</button>
-        </div>
-      `;
+        </div>`;
+      el.addEventListener("click", (e) => { if (!e.target.closest("button")) selectClip(c.id); });
       list.appendChild(el);
-      el.querySelector(".speed-sel").value = c.speed;
-    });
-
-    list.querySelectorAll(".speed-sel").forEach(sel => {
-      sel.addEventListener("change", (e) => {
-        const c = state.clips.find(c => c.id === sel.dataset.id);
-        if (c) c.speed = parseFloat(sel.value);
-      });
     });
     list.querySelectorAll("[data-up]").forEach(b => b.addEventListener("click", () => move(b.dataset.up, -1)));
     list.querySelectorAll("[data-down]").forEach(b => b.addEventListener("click", () => move(b.dataset.down, 1)));
     list.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => del(b.dataset.del)));
   }
+  function move(id, dir) { const i = state.clips.findIndex(c=>c.id===id), j=i+dir; if(j<0||j>=state.clips.length) return; [state.clips[i],state.clips[j]]=[state.clips[j],state.clips[i]]; renderAll(); }
+  function del(id) { const i = state.clips.findIndex(c=>c.id===id); if(i>=0){ URL.revokeObjectURL(state.clips[i].url); state.clips.splice(i,1); if(state.selectedClipId===id) state.selectedClipId=null; renderAll(); }}
+  function effDur(c) { return (c.trimEnd - c.trimStart) / c.speed; }
+  function totalDur() { return state.clips.reduce((s,c)=>s+effDur(c), 0); }
 
-  function move(id, dir) {
-    const i = state.clips.findIndex(c => c.id === id);
-    const j = i + dir;
-    if (j < 0 || j >= state.clips.length) return;
-    [state.clips[i], state.clips[j]] = [state.clips[j], state.clips[i]];
-    renderClipList();
-  }
-  function del(id) {
-    const i = state.clips.findIndex(c => c.id === id);
-    if (i >= 0) {
-      URL.revokeObjectURL(state.clips[i].url);
-      state.clips.splice(i, 1);
-      renderClipList();
-      drawPlaceholder();
-    }
+  // ──────────── Selection & clip settings ────────────
+  function selectClip(id) { state.selectedClipId = id; renderSelectedPanel(); renderClipList(); renderTimeline(); }
+  function renderSelectedPanel() {
+    const panel = $("selectedClipPanel");
+    const c = state.clips.find(c => c.id === state.selectedClipId);
+    if (!c) { panel.innerHTML = '<div style="color:var(--muted); font-size:12px;">Click a clip in the timeline to edit trim & speed.</div>'; return; }
+    panel.innerHTML = `
+      <div style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:8px;">${c.name}</div>
+      <div class="field"><label>Trim start (s)</label><input type="number" id="trimStart" min="0" max="${c.duration}" step="0.1" value="${c.trimStart.toFixed(2)}"/></div>
+      <div class="field"><label>Trim end (s)</label><input type="number" id="trimEnd" min="0" max="${c.duration}" step="0.1" value="${c.trimEnd.toFixed(2)}"/></div>
+      <div class="field"><label>Speed</label><select id="clipSpeed">
+        <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option>
+      </select></div>
+      <div style="font-size:11px; color:var(--muted);">Duration: ${effDur(c).toFixed(2)}s · Original: ${c.duration.toFixed(2)}s</div>`;
+    $("trimStart").value = c.trimStart; $("trimEnd").value = c.trimEnd; $("clipSpeed").value = c.speed;
+    $("trimStart").addEventListener("input", (e) => { c.trimStart = Math.max(0, Math.min(c.trimEnd - 0.1, parseFloat(e.target.value)||0)); renderSelectedPanel(); renderTimeline(); renderClipList(); });
+    $("trimEnd").addEventListener("input", (e) => { c.trimEnd = Math.max(c.trimStart + 0.1, Math.min(c.duration, parseFloat(e.target.value)||c.duration)); renderSelectedPanel(); renderTimeline(); renderClipList(); });
+    $("clipSpeed").addEventListener("change", (e) => { c.speed = parseFloat(e.target.value); renderSelectedPanel(); renderTimeline(); renderClipList(); });
   }
 
-  // ---------- Frame presets ----------
-  $("frameBtns").querySelectorAll("button").forEach(b => {
-    b.addEventListener("click", () => {
-      $("frameBtns").querySelectorAll("button").forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
-      state.frame = { w: parseInt(b.dataset.w), h: parseInt(b.dataset.h), label: b.dataset.label };
-      resizeCanvas();
+  // ──────────── Frame presets ────────────
+  $("frameBtns").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    $("frameBtns").querySelectorAll("button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    state.frame = { w: parseInt(b.dataset.w), h: parseInt(b.dataset.h), label: b.dataset.label };
+    resizeCanvas();
+  }));
+  $("bgColor").addEventListener("input", drawPlaceholder);
+  $("fitCover").addEventListener("change", drawPlaceholder);
+
+  // ──────────── Filters & fade ────────────
+  const filterMap = [["fBrightness","brightness","%"],["fContrast","contrast","%"],["fSaturate","saturate","%"],["fGray","grayscale","%"],["fSepia","sepia","%"],["fBlur","blur","px"]];
+  filterMap.forEach(([id,key,unit]) => {
+    $(id).addEventListener("input", (e) => {
+      state.filters[key] = parseFloat(e.target.value);
+      $(id+"Val").textContent = e.target.value + unit;
     });
   });
-
-  // ---------- Text overlays ----------
-  $("addTextBtn").addEventListener("click", () => {
-    state.texts.push({ text: "Your text", start: 0, end: 3, size: 64, color: "#ffffff", pos: "bottom" });
-    renderTexts();
+  $("resetFilters").addEventListener("click", () => {
+    state.filters = { brightness:100, contrast:100, saturate:100, grayscale:0, sepia:0, blur:0 };
+    filterMap.forEach(([id,key,unit]) => { $(id).value = state.filters[key]; $(id+"Val").textContent = state.filters[key]+unit; });
   });
+  $("fadeIn").addEventListener("input", (e) => { state.fadeIn = parseFloat(e.target.value); $("fadeInVal").textContent = state.fadeIn.toFixed(1)+"s"; });
+  $("fadeOut").addEventListener("input", (e) => { state.fadeOut = parseFloat(e.target.value); $("fadeOutVal").textContent = state.fadeOut.toFixed(1)+"s"; });
 
+  // ──────────── Text overlays ────────────
+  $("addTextBtn").addEventListener("click", () => { state.texts.push({ text:"Your text", start:0, end:3, size:64, color:"#ffffff", pos:"bottom" }); renderTexts(); });
   function renderTexts() {
-    const list = $("textList");
-    list.innerHTML = "";
-    state.texts.forEach((t, i) => {
-      const el = document.createElement("div");
-      el.className = "text-overlay-item";
+    const list = $("textList"); list.innerHTML = "";
+    state.texts.forEach((t,i) => {
+      const el = document.createElement("div"); el.className = "text-overlay-item";
       el.innerHTML = `
         <input type="text" value="${t.text.replace(/"/g,"&quot;")}" data-i="${i}" data-k="text" placeholder="Text"/>
         <div class="row">
@@ -480,179 +509,227 @@
           </select>
           <input type="color" value="${t.color}" data-i="${i}" data-k="color"/>
           <button class="danger" data-del-text="${i}">✕</button>
-        </div>
-      `;
+        </div>`;
       list.appendChild(el);
     });
-    list.querySelectorAll("input, select").forEach(inp => {
-      inp.addEventListener("input", () => {
-        const i = parseInt(inp.dataset.i), k = inp.dataset.k;
-        if (k === "text" || k === "color" || k === "pos") state.texts[i][k] = inp.value;
-        else state.texts[i][k] = parseFloat(inp.value) || 0;
-      });
-    });
-    list.querySelectorAll("[data-del-text]").forEach(b => b.addEventListener("click", () => {
-      state.texts.splice(parseInt(b.dataset.delText), 1);
-      renderTexts();
+    list.querySelectorAll("input, select").forEach(inp => inp.addEventListener("input", () => {
+      const i = parseInt(inp.dataset.i), k = inp.dataset.k;
+      if (k==="text"||k==="color"||k==="pos") state.texts[i][k] = inp.value;
+      else state.texts[i][k] = parseFloat(inp.value)||0;
     }));
+    list.querySelectorAll("[data-del-text]").forEach(b => b.addEventListener("click", () => { state.texts.splice(parseInt(b.dataset.delText),1); renderTexts(); }));
   }
 
-  // ---------- Rendering ----------
-  function drawFrame(clip, globalTime) {
-    ctx.fillStyle = $("bgColor").value;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // ──────────── Timeline ────────────
+  function renderTimeline() {
+    const vt = $("videoTrack"), at = $("audioTrack"), ruler = $("ruler");
+    vt.querySelectorAll(".tl-clip").forEach(e=>e.remove());
+    at.innerHTML = "";
+    const total = Math.max(totalDur(), state.bgAudio ? state.bgAudio.duration : 0, 5);
+    // ruler
+    ruler.innerHTML = "";
+    const step = total > 60 ? 10 : (total > 20 ? 5 : 1);
+    for (let t = 0; t <= total; t += step) {
+      const tick = document.createElement("div"); tick.className = "tick";
+      tick.style.left = (t/total*100)+"%";
+      tick.textContent = formatTime(t);
+      ruler.appendChild(tick);
+    }
+    // clips
+    let acc = 0;
+    state.clips.forEach(c => {
+      const d = effDur(c);
+      const el = document.createElement("div");
+      el.className = "tl-clip" + (c.id === state.selectedClipId ? " selected" : "");
+      el.style.left = (acc/total*100)+"%";
+      el.style.width = (d/total*100)+"%";
+      el.textContent = c.name;
+      el.title = `${c.name} · ${d.toFixed(1)}s`;
+      el.innerHTML = `<div class="handle left" data-trim="start" data-id="${c.id}"></div>${c.name}<div class="handle right" data-trim="end" data-id="${c.id}"></div>`;
+      el.addEventListener("click", (e) => { if (!e.target.classList.contains("handle")) selectClip(c.id); });
+      vt.appendChild(el);
+      // drag handles
+      el.querySelectorAll(".handle").forEach(h => h.addEventListener("mousedown", (ev) => startTrimDrag(ev, c, h.dataset.trim, total)));
+      acc += d;
+    });
+    // audio
+    if (state.bgAudio) {
+      const a = document.createElement("div"); a.className = "tl-audio-clip";
+      a.style.width = Math.min(100, state.bgAudio.duration/total*100)+"%";
+      a.textContent = `🎵 ${state.bgAudio.file.name}`;
+      at.appendChild(a);
+    }
+    updateTimeLabel(0);
+  }
 
-    if (clip && clip.video.readyState >= 2) {
-      const v = clip.video;
-      const cw = canvas.width, ch = canvas.height;
-      const vw = v.videoWidth, vh = v.videoHeight;
-      const cover = $("fitCover").checked;
-      const vr = vw / vh, cr = cw / ch;
-      let dw, dh, dx, dy;
-      if (cover ? vr > cr : vr < cr) {
-        dh = ch; dw = dh * vr; dx = (cw - dw) / 2; dy = 0;
+  function startTrimDrag(ev, clip, side, total) {
+    ev.preventDefault(); ev.stopPropagation();
+    const track = $("videoTrack"); const rect = track.getBoundingClientRect();
+    const onMove = (e) => {
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const tAbs = pct * total;
+      // figure out clip start offset on timeline
+      let off = 0; for (const c of state.clips) { if (c.id === clip.id) break; off += effDur(c); }
+      const localSec = (tAbs - off) * clip.speed; // in source seconds from trimStart
+      if (side === "start") {
+        clip.trimStart = Math.max(0, Math.min(clip.trimEnd - 0.2, clip.trimStart + localSec));
       } else {
-        dw = cw; dh = dw / vr; dx = 0; dy = (ch - dh) / 2;
+        clip.trimEnd = Math.max(clip.trimStart + 0.2, Math.min(clip.duration, clip.trimStart + localSec));
       }
+      renderTimeline(); renderSelectedPanel(); renderClipList();
+    };
+    const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+    document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+    selectClip(clip.id);
+  }
+
+  function formatTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return `${m}:${sec.toString().padStart(2,"0")}`; }
+  function updateTimeLabel(cur) { $("timeLabel").textContent = `${formatTime(cur)} / ${formatTime(totalDur())}`; const total = Math.max(totalDur(), state.bgAudio ? state.bgAudio.duration : 0, 5); $("playhead").style.left = (cur/total*100)+"%"; }
+
+  function renderAll() { renderClipList(); renderTexts(); renderTimeline(); renderSelectedPanel(); drawPlaceholder(); }
+
+  // ──────────── Draw frame ────────────
+  function drawFrame(clip, globalTime) {
+    ctx.filter = "none";
+    ctx.fillStyle = $("bgColor").value; ctx.fillRect(0,0,canvas.width,canvas.height);
+    if (clip && clip.video.readyState >= 2) {
+      ctx.filter = filterStr();
+      const v = clip.video, cw = canvas.width, ch = canvas.height;
+      const vw = v.videoWidth, vh = v.videoHeight;
+      const cover = $("fitCover").checked, vr = vw/vh, cr = cw/ch;
+      let dw, dh, dx, dy;
       if (cover) {
-        if (vr > cr) { dw = ch * vr; dh = ch; dx = (cw - dw)/2; dy = 0; }
-        else { dw = cw; dh = cw / vr; dx = 0; dy = (ch - dh)/2; }
+        if (vr > cr) { dh = ch; dw = dh*vr; dx = (cw-dw)/2; dy = 0; }
+        else { dw = cw; dh = dw/vr; dx = 0; dy = (ch-dh)/2; }
+      } else {
+        if (vr > cr) { dw = cw; dh = dw/vr; dx = 0; dy = (ch-dh)/2; }
+        else { dh = ch; dw = dh*vr; dx = (cw-dw)/2; dy = 0; }
       }
       ctx.drawImage(v, dx, dy, dw, dh);
+      ctx.filter = "none";
     }
-
-    // text overlays
+    // text
     state.texts.forEach(t => {
       if (globalTime >= t.start && globalTime <= t.end && t.text) {
-        ctx.font = `bold ${t.size}px system-ui, -apple-system, Segoe UI, sans-serif`;
-        ctx.textAlign = "center";
-        ctx.fillStyle = t.color;
-        ctx.strokeStyle = "rgba(0,0,0,0.75)";
-        ctx.lineWidth = Math.max(3, t.size / 16);
-        let y;
-        if (t.pos === "top") y = t.size + 40;
-        else if (t.pos === "middle") y = canvas.height / 2;
-        else y = canvas.height - 40;
+        ctx.font = `bold ${t.size}px system-ui, sans-serif`; ctx.textAlign = "center";
+        ctx.fillStyle = t.color; ctx.strokeStyle = "rgba(0,0,0,0.75)"; ctx.lineWidth = Math.max(3, t.size/16);
+        let y = t.pos === "top" ? t.size + 40 : t.pos === "middle" ? canvas.height/2 : canvas.height - 40;
         ctx.textBaseline = "alphabetic";
-        ctx.strokeText(t.text, canvas.width / 2, y);
-        ctx.fillText(t.text, canvas.width / 2, y);
+        ctx.strokeText(t.text, canvas.width/2, y); ctx.fillText(t.text, canvas.width/2, y);
       }
     });
+    // fade
+    const total = totalDur();
+    let fadeAlpha = 0;
+    if (state.fadeIn > 0 && globalTime < state.fadeIn) fadeAlpha = Math.max(fadeAlpha, 1 - globalTime/state.fadeIn);
+    if (state.fadeOut > 0 && globalTime > total - state.fadeOut) fadeAlpha = Math.max(fadeAlpha, (globalTime - (total - state.fadeOut))/state.fadeOut);
+    if (fadeAlpha > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1,fadeAlpha)})`; ctx.fillRect(0,0,canvas.width,canvas.height); }
   }
 
-  // ---------- Preview playback ----------
+  // ──────────── Playback ────────────
   $("playBtn").addEventListener("click", async () => {
     if (!state.clips.length || state.playing) return;
-    state.playing = true;
-    setStatus("Playing preview...");
+    state.playing = true; setStatus("Playing...");
     await playSequence(false);
-    state.playing = false;
-    setStatus("");
+    state.playing = false; setStatus("");
   });
-  $("stopBtn").addEventListener("click", () => { state.playing = false; });
+  $("stopBtn").addEventListener("click", () => { state.playing = false; if (state.bgAudio) { state.bgAudio.audio.pause(); state.bgAudio.audio.currentTime = 0; } });
 
   async function playSequence(forExport, onFrame) {
     let globalTime = 0;
+    if (state.bgAudio && !forExport) {
+      state.bgAudio.audio.volume = state.bgVol; state.bgAudio.audio.currentTime = 0;
+      try { await state.bgAudio.audio.play(); } catch(e){}
+    }
     for (const clip of state.clips) {
-      if (!state.playing && !forExport) return;
+      if (!state.playing && !forExport) break;
       const v = clip.video;
-      v.currentTime = 0;
+      v.currentTime = clip.trimStart;
       v.playbackRate = clip.speed;
-      try { await v.play(); } catch(e) {}
-      const effDur = clip.duration / clip.speed;
+      v.volume = state.clipVol;
+      try { await v.play(); } catch(e){}
+      const effD = effDur(clip);
       const start = performance.now();
       await new Promise((resolve) => {
         const tick = () => {
           if (!state.playing && !forExport) { v.pause(); resolve(); return; }
-          const elapsed = (performance.now() - start) / 1000;
-          if (elapsed >= effDur || v.ended) { v.pause(); resolve(); return; }
+          const elapsed = (performance.now() - start)/1000;
+          if (elapsed >= effD || v.currentTime >= clip.trimEnd || v.ended) { v.pause(); resolve(); return; }
           drawFrame(clip, globalTime + elapsed);
+          updateTimeLabel(globalTime + elapsed);
           if (onFrame) onFrame(globalTime + elapsed);
           requestAnimationFrame(tick);
         };
         tick();
       });
-      globalTime += effDur;
+      globalTime += effD;
     }
-    drawPlaceholder();
+    if (state.bgAudio) { state.bgAudio.audio.pause(); state.bgAudio.audio.currentTime = 0; }
+    drawPlaceholder(); updateTimeLabel(0);
   }
 
-  // ---------- Export ----------
+  // ──────────── Export ────────────
   $("exportBtn").addEventListener("click", async () => {
     if (!state.clips.length || state.exporting) return;
-    state.exporting = true;
-    state.playing = true;
+    state.exporting = true; state.playing = true;
     await exportVideo();
-    state.exporting = false;
-    state.playing = false;
+    state.exporting = false; state.playing = false;
   });
 
   async function exportVideo() {
-    const fps = parseInt($("fpsSel").value);
-    const bitrate = parseInt($("qualitySel").value);
+    const fps = parseInt($("fpsSel").value), bitrate = parseInt($("qualitySel").value);
     const stream = canvas.captureStream(fps);
-
-    // audio mixing
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AudioCtx();
     const dest = audioCtx.createMediaStreamDestination();
+    // clip audio
     state.clips.forEach(c => {
       try {
-        c.video.muted = false;
-        c.video.volume = 1;
+        c.video.muted = false; c.video.volume = 1;
         const src = audioCtx.createMediaElementSource(c.video);
-        src.connect(dest);
-      } catch (e) { /* already connected */ }
+        const gain = audioCtx.createGain(); gain.gain.value = state.clipVol;
+        src.connect(gain); gain.connect(dest);
+      } catch(e) {}
     });
+    // bg audio
+    if (state.bgAudio) {
+      try {
+        const src = audioCtx.createMediaElementSource(state.bgAudio.audio);
+        const gain = audioCtx.createGain(); gain.gain.value = state.bgVol;
+        src.connect(gain); gain.connect(dest);
+        state.bgAudio.audio.currentTime = 0; state.bgAudio.audio.play().catch(()=>{});
+      } catch(e) {}
+    }
     dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
 
-    const mimeCandidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
-    const mime = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m)) || "video/webm";
+    const mimes = ["video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"];
+    const mime = mimes.find(m => MediaRecorder.isTypeSupported(m)) || "video/webm";
     const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate });
-    const chunks = [];
-    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    const chunks = []; rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
 
-    const totalDur = state.clips.reduce((s, c) => s + c.duration / c.speed, 0);
-    showProgress(true);
-    setStatus("Recording... do not switch tabs.");
+    const total = totalDur();
+    showProgress(true); setStatus("Recording... don't switch tabs.");
     rec.start();
-
-    await playSequence(true, (t) => {
-      setProgress((t / totalDur) * 100);
-    });
-
+    await playSequence(true, (t) => setProgress((t/total)*100));
     rec.stop();
-    await new Promise((res) => rec.onstop = res);
-
-    // reset audio
-    state.clips.forEach(c => { c.video.muted = true; });
-    try { audioCtx.close(); } catch(e) {}
+    await new Promise(res => rec.onstop = res);
+    state.clips.forEach(c => c.video.muted = true);
+    try { audioCtx.close(); } catch(e){}
 
     const blob = new Blob(chunks, { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    a.href = url;
-    a.download = `combined_${state.frame.label.replace(/[^a-z0-9]/gi,"_")}_${ts}.webm`;
-    a.click();
+    const url = URL.createObjectURL(blob); const a = document.createElement("a");
+    const ts = new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
+    a.href = url; a.download = `combined_${state.frame.label}_${ts}.webm`; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-
-    setProgress(100);
-    setStatus("Done! Downloaded " + a.download, "ok");
+    setProgress(100); setStatus("Done! Downloaded "+a.download, "ok");
     setTimeout(() => { showProgress(false); setProgress(0); }, 2000);
   }
-
   function showProgress(v) { $("progress").classList.toggle("active", v); }
-  function setProgress(p) { $("progressBar").style.width = Math.min(100, p) + "%"; }
-  function setStatus(msg, cls = "") {
-    const s = $("status");
-    s.textContent = msg;
-    s.className = "status " + cls;
-  }
-
-  $("bgColor").addEventListener("input", drawPlaceholder);
+  function setProgress(p) { $("progressBar").style.width = Math.min(100,p)+"%"; }
+  function setStatus(msg, cls="") { const s = $("status"); s.textContent = msg; s.className = "status " + cls; }
 
   resizeCanvas();
+  renderTimeline();
 })();
 </script>
 </body>
