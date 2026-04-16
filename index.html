@@ -184,6 +184,9 @@
         <div><strong>Import media</strong><br/>drop or click</div>
         <div style="font-size:11px; margin-top:4px;">Processed locally</div>
       </label>
+      <div class="warning" style="margin-top:10px; padding:8px 10px; background:rgba(255,85,119,0.1); border:1px solid rgba(255,85,119,0.4); border-radius:8px; font-size:11px; color:#ffb3c3; line-height:1.5;">
+        <strong style="color:#ff5577;">⚠ Nothing is saved.</strong> Refreshing or closing this tab will lose all your work. Export your video before leaving.
+      </div>
       <div class="clip-list" id="clipList"></div>
     </div>
 
@@ -241,6 +244,7 @@
       <button id="pauseBtn">⏸ Pause</button>
       <button id="stopBtn">■ Stop</button>
       <button id="splitBtn" title="Split selected clip at playhead (S)">✂ Split</button>
+      <button id="deleteBtn" class="danger" title="Delete selected clip (Del)">🗑 Delete</button>
       <span class="time" id="timeLabel">0:00 / 0:00</span>
       <div class="spacer"></div>
       <select id="fpsSel" title="FPS"><option value="24">24fps</option><option value="30" selected>30fps</option><option value="60">60fps</option></select>
@@ -402,8 +406,7 @@
 
   // ──────────── Files ────────────
   const drop = $("drop"), fileInput = $("fileInput");
-  drop.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
+  fileInput.addEventListener("change", (e) => { handleFiles(e.target.files); e.target.value = ""; });
   ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
   ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
   drop.addEventListener("drop", (e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); });
@@ -422,9 +425,8 @@
 
   // ──────────── Audio ────────────
   const audioDrop = $("audioDrop"), audioInput = $("audioInput");
-  audioDrop.addEventListener("click", () => audioInput.click());
   audioInput.addEventListener("change", async (e) => {
-    const f = e.target.files[0]; if (!f) return;
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
     const url = URL.createObjectURL(f);
     const audio = new Audio(url); audio.preload = "auto";
     await new Promise((res, rej) => { audio.onloadedmetadata = res; audio.onerror = () => rej(); });
@@ -689,9 +691,22 @@
     renderAll();
   }
   $("splitBtn").addEventListener("click", splitAtPlayhead);
+
+  function deleteSelected() {
+    if (state.playing) { setStatus("Pause or stop playback before deleting", "err"); return; }
+    if (!state.selectedClipId) {
+      if (state.clips.length === 0) { setStatus("No clips to delete", "err"); return; }
+      setStatus("Select a clip first (click one on the timeline)", "err"); return;
+    }
+    del(state.selectedClipId);
+    setStatus("Clip deleted", "ok");
+  }
+  $("deleteBtn").addEventListener("click", deleteSelected);
+
   document.addEventListener("keydown", (e) => {
     if (e.target.matches("input, textarea, select")) return;
     if (e.key === "s" || e.key === "S") { e.preventDefault(); splitAtPlayhead(); }
+    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); deleteSelected(); }
   });
 
   function renderAll() { renderClipList(); renderTexts(); renderTimeline(); renderSelectedPanel(); drawPlaceholder(); }
@@ -863,6 +878,14 @@
 
   resizeCanvas();
   renderTimeline();
+
+  window.addEventListener("beforeunload", (e) => {
+    if (state.clips.length > 0 || state.bgAudio) {
+      e.preventDefault();
+      e.returnValue = "You have unsaved work. Export your video before leaving.";
+      return e.returnValue;
+    }
+  });
 })();
 </script>
 </body>
