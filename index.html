@@ -31,9 +31,9 @@
   .links a, .links button { color: var(--accent-2); text-decoration: none; margin-left: 14px; font-size: 13px; cursor: pointer; background: none; border: none; font-family: inherit; }
   .links a:hover, .links button:hover { text-decoration: underline; }
 
-  .app { display: grid; grid-template-columns: 72px 260px 1fr 300px; grid-template-rows: 1fr auto; height: calc(100vh - 55px); gap: 0; }
+  .app { display: grid; grid-template-columns: 72px 260px 1fr 300px; grid-template-rows: 1fr auto auto; height: calc(100vh - 55px); gap: 0; }
   @media (max-width: 1200px) { .app { grid-template-columns: 72px 240px 1fr 260px; } }
-  @media (max-width: 900px) { .app { display: block; height: auto; } .app > * { display: block !important; } }
+  @media (max-width: 900px) { .app { display: flex; flex-direction: column; height: auto; } .app > * { width: 100% !important; } .leftpanel { order: -1; } .rail { width: 100%; flex-direction: row; padding: 6px; } .rightpanel { order: 2; } }
 
   /* Left rail (icon tabs) */
   .rail { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 10px 6px; gap: 4px; grid-row: 1 / 3; }
@@ -49,8 +49,9 @@
   .tabpane { display: none; }
   .tabpane.active { display: block; }
 
-  .drop { border: 2px dashed var(--border); border-radius: 12px; padding: 20px; text-align: center; color: var(--muted); cursor: pointer; transition: all .15s ease; }
+  .drop { display: block; box-sizing: border-box; width: 100%; border: 2px dashed var(--border); border-radius: 12px; padding: 20px 14px; text-align: center; color: var(--muted); cursor: pointer; transition: all .15s ease; }
   .drop:hover, .drop.drag { border-color: var(--accent); color: var(--text); background: var(--panel-2); }
+  .drop input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; clip: rect(0 0 0 0); }
   .drop input { display: none; }
 
   button, select, input[type="text"], input[type="number"] { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit; }
@@ -124,9 +125,16 @@
   .status.ok { color: var(--ok); }
   .status.err { color: var(--danger); }
 
-  footer { text-align: center; padding: 12px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
+  footer { text-align: center; padding: 12px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap; }
   .jakpar-trigger { background: none; border: none; color: var(--accent-2); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font-family: inherit; font-size: inherit; padding: 0; }
   .jakpar-trigger:hover { color: var(--accent); }
+  .bmc-btn { display: inline-flex; align-items: center; gap: 6px; background: #FFDD00; color: #000; padding: 6px 12px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 12px; transition: transform .1s ease, box-shadow .15s ease; border: 1px solid #e4c800; }
+  .bmc-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(255,221,0,0.25); }
+  .bmc-btn svg { width: 14px; height: 14px; }
+  @media (max-width: 600px) {
+    footer { flex-direction: column; gap: 8px; padding: 10px; font-size: 11px; }
+    .bmc-btn { width: 100%; justify-content: center; padding: 8px 10px; }
+  }
 
   .modal-backdrop { position: fixed; inset: 0; background: rgba(5,6,18,0.75); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
   .modal-backdrop.open { display: flex; }
@@ -312,11 +320,15 @@
     <div class="track-label" style="margin-top:8px;">🎵 Audio</div>
     <div class="track audio-track" id="audioTrack"></div>
   </section>
-</div>
 
-<footer>
-  Developed by <button class="jakpar-trigger" id="jakparTrigger">Jakpar</button>
-</footer>
+  <footer style="grid-column: 1 / -1;">
+    <span>Developed by <button class="jakpar-trigger" id="jakparTrigger">Jakpar</button></span>
+    <a class="bmc-btn" href="https://buymeacoffee.com/kidgrowth" target="_blank" rel="noopener" title="Support the developer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+      Buy me a coffee
+    </a>
+  </footer>
+</div>
 
 <!-- Jakpar Contact Modal -->
 <div class="modal-backdrop" id="jakparModal" role="dialog" aria-modal="true" aria-labelledby="jakparTitle">
@@ -456,7 +468,15 @@
           video.onerror = () => rej(new Error("Cannot load " + f.name));
           setTimeout(() => rej(new Error("Timeout loading " + f.name)), 30000);
         });
-        return { ok: true, clip: { id: crypto.randomUUID(), file: f, url, video, duration: video.duration, trimStart: 0, trimEnd: video.duration, speed: 1, name: f.name } };
+        // force a first frame to be decoded so the preview can draw + users can drag immediately
+        await new Promise((res) => {
+          const ok = () => { video.removeEventListener("loadeddata", ok); video.removeEventListener("seeked", ok); res(); };
+          video.addEventListener("loadeddata", ok);
+          video.addEventListener("seeked", ok);
+          try { video.currentTime = 0.01; } catch(e){}
+          setTimeout(ok, 1500);
+        });
+        return { ok: true, clip: { id: crypto.randomUUID(), file: f, url, video, duration: video.duration, trimStart: 0, trimEnd: video.duration, speed: 1, name: f.name, layer: "main", transform: { x: 0, y: 0, scale: 1 }, startAt: 0 } };
       } catch (err) { console.warn(err); return { ok: false, reason: err.message, name: f.name }; }
     }));
     // preserve picker order
@@ -505,7 +525,9 @@
   function move(id, dir) { const i = state.clips.findIndex(c=>c.id===id), j=i+dir; if(j<0||j>=state.clips.length) return; [state.clips[i],state.clips[j]]=[state.clips[j],state.clips[i]]; renderAll(); }
   function del(id) { const i = state.clips.findIndex(c=>c.id===id); if(i>=0){ URL.revokeObjectURL(state.clips[i].url); state.clips.splice(i,1); if(state.selectedClipId===id) state.selectedClipId=null; renderAll(); }}
   function effDur(c) { return (c.trimEnd - c.trimStart) / c.speed; }
-  function totalDur() { return state.clips.reduce((s,c)=>s+effDur(c), 0); }
+  function mainClips() { return state.clips.filter(c => c.layer === "main"); }
+  function overlayClips() { return state.clips.filter(c => c.layer === "overlay"); }
+  function totalDur() { return mainClips().reduce((s,c)=>s+effDur(c), 0); }
 
   // ──────────── Selection & clip settings ────────────
   function selectClip(id) { state.selectedClipId = id; renderSelectedPanel(); renderClipList(); renderTimeline(); }
@@ -513,18 +535,33 @@
     const panel = $("selectedClipPanel");
     const c = state.clips.find(c => c.id === state.selectedClipId);
     if (!c) { panel.innerHTML = '<div style="color:var(--muted); font-size:12px;">Click a clip in the timeline to edit trim & speed.</div>'; return; }
+    const tr = c.transform || { x:0, y:0, scale:1 };
     panel.innerHTML = `
       <div style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:8px;">${c.name}</div>
+      <div class="field"><label>Layer</label><select id="clipLayer">
+        <option value="main">Main (sequence)</option><option value="overlay">Overlay (on top)</option>
+      </select></div>
+      <div class="field" id="startAtField" style="${c.layer==='overlay'?'':'display:none'}"><label>Overlay starts at (s)</label><input type="number" id="clipStartAt" min="0" step="0.1" value="${(c.startAt||0).toFixed(2)}"/></div>
       <div class="field"><label>Trim start (s)</label><input type="number" id="trimStart" min="0" max="${c.duration}" step="0.1" value="${c.trimStart.toFixed(2)}"/></div>
       <div class="field"><label>Trim end (s)</label><input type="number" id="trimEnd" min="0" max="${c.duration}" step="0.1" value="${c.trimEnd.toFixed(2)}"/></div>
       <div class="field"><label>Speed</label><select id="clipSpeed">
         <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option>
       </select></div>
-      <div style="font-size:11px; color:var(--muted);">Duration: ${effDur(c).toFixed(2)}s · Original: ${c.duration.toFixed(2)}s</div>`;
+      <div class="field"><label>Scale <span id="scaleVal" style="color:var(--muted)">${(tr.scale*100).toFixed(0)}%</span></label><input type="range" id="clipScale" min="0.1" max="3" step="0.01" value="${tr.scale}"/></div>
+      <div style="display:flex; gap:6px; margin-top:6px;">
+        <button id="resetXform" class="btn" style="flex:1; font-size:11px;">Reset position & size</button>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:6px;">Drag the clip on the preview to move it · scroll wheel to resize · Duration ${effDur(c).toFixed(2)}s</div>`;
+    $("clipLayer").value = c.layer || "main";
     $("trimStart").value = c.trimStart; $("trimEnd").value = c.trimEnd; $("clipSpeed").value = c.speed;
+    $("clipLayer").addEventListener("change", (e) => { c.layer = e.target.value; if (c.layer === "overlay" && !c.startAt) c.startAt = state.playhead || 0; renderSelectedPanel(); renderTimeline(); redrawCurrent(); });
     $("trimStart").addEventListener("input", (e) => { c.trimStart = Math.max(0, Math.min(c.trimEnd - 0.1, parseFloat(e.target.value)||0)); renderSelectedPanel(); renderTimeline(); renderClipList(); });
     $("trimEnd").addEventListener("input", (e) => { c.trimEnd = Math.max(c.trimStart + 0.1, Math.min(c.duration, parseFloat(e.target.value)||c.duration)); renderSelectedPanel(); renderTimeline(); renderClipList(); });
     $("clipSpeed").addEventListener("change", (e) => { c.speed = parseFloat(e.target.value); renderSelectedPanel(); renderTimeline(); renderClipList(); });
+    const startAtEl = $("clipStartAt");
+    if (startAtEl) startAtEl.addEventListener("input", (e) => { c.startAt = Math.max(0, parseFloat(e.target.value)||0); renderTimeline(); redrawCurrent(); });
+    $("clipScale").addEventListener("input", (e) => { c.transform.scale = parseFloat(e.target.value); $("scaleVal").textContent = (c.transform.scale*100).toFixed(0)+"%"; redrawCurrent(); });
+    $("resetXform").addEventListener("click", () => { c.transform = { x:0, y:0, scale:1 }; renderSelectedPanel(); redrawCurrent(); });
   }
 
   // ──────────── Frame presets ────────────
@@ -607,26 +644,40 @@
       tick.textContent = formatTime(t);
       ruler.appendChild(tick);
     }
-    // clips
+    // main clips (sequential)
     let acc = 0;
-    state.clips.forEach(c => {
+    mainClips().forEach(c => {
       const d = effDur(c);
       const el = document.createElement("div");
       el.className = "tl-clip" + (c.id === state.selectedClipId ? " selected" : "");
       el.style.left = (acc/total*100)+"%";
       el.style.width = (d/total*100)+"%";
-      el.textContent = c.name;
       el.title = `${c.name} · ${d.toFixed(1)}s`;
       el.innerHTML = `<div class="handle left" data-trim="start" data-id="${c.id}"></div>${c.name}<div class="handle right" data-trim="end" data-id="${c.id}"></div>`;
       el.addEventListener("click", (e) => { if (!e.target.classList.contains("handle")) selectClip(c.id); });
       vt.appendChild(el);
-      // drag handles
       el.querySelectorAll(".handle").forEach(h => h.addEventListener("mousedown", (ev) => startTrimDrag(ev, c, h.dataset.trim, total)));
       acc += d;
     });
-    // per-clip linked audio (mirror video clips)
+    // overlay clips (on top row, positioned at startAt)
+    overlayClips().forEach(c => {
+      const d = effDur(c);
+      const el = document.createElement("div");
+      el.className = "tl-clip overlay" + (c.id === state.selectedClipId ? " selected" : "");
+      el.style.left = ((c.startAt||0)/total*100)+"%";
+      el.style.width = (d/total*100)+"%";
+      el.style.top = "2px"; el.style.height = "18px";
+      el.style.background = "linear-gradient(135deg, #7c3aed, #c026d3)";
+      el.style.fontSize = "10px";
+      el.title = `Overlay · ${c.name} · starts ${(c.startAt||0).toFixed(1)}s`;
+      el.textContent = "▣ " + c.name;
+      el.addEventListener("mousedown", (ev) => startOverlayDrag(ev, c, total));
+      el.addEventListener("click", () => selectClip(c.id));
+      vt.appendChild(el);
+    });
+    // per-clip linked audio (mirror main clips only)
     let aAcc = 0;
-    state.clips.forEach(c => {
+    mainClips().forEach(c => {
       const d = effDur(c);
       const a = document.createElement("div");
       a.className = "tl-audio-clip linked";
@@ -651,6 +702,21 @@
       at.appendChild(a);
     }
     updateTimeLabel(state.playhead || 0);
+  }
+
+  function startOverlayDrag(ev, clip, total) {
+    if (ev.target.classList.contains("handle")) return;
+    ev.preventDefault(); ev.stopPropagation();
+    selectClip(clip.id);
+    const track = $("videoTrack"); const rect = track.getBoundingClientRect();
+    const startX = ev.clientX; const orig = clip.startAt || 0;
+    const onMove = (e) => {
+      const dx = (e.clientX - startX) / rect.width;
+      clip.startAt = Math.max(0, orig + dx * total);
+      renderTimeline(); redrawCurrent();
+    };
+    const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); renderSelectedPanel(); };
+    document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
   }
 
   function startTrimDrag(ev, clip, side, total) {
@@ -714,12 +780,15 @@
 
   function clipAtGlobal(t) {
     let acc = 0;
-    for (const c of state.clips) {
+    for (const c of mainClips()) {
       const d = effDur(c);
       if (t >= acc && t < acc + d) return { clip: c, localTime: t - acc, index: state.clips.indexOf(c) };
       acc += d;
     }
     return { clip: null, localTime: 0, index: -1 };
+  }
+  function activeOverlays(t) {
+    return overlayClips().filter(oc => t >= oc.startAt && t < oc.startAt + effDur(oc));
   }
 
   // Split at playhead
@@ -761,18 +830,20 @@
     if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); deleteSelected(); }
   });
 
-  function renderAll() { renderClipList(); renderTexts(); renderTimeline(); renderSelectedPanel(); drawPlaceholder(); }
+  function renderAll() { renderClipList(); renderTexts(); renderTimeline(); renderSelectedPanel(); if (state.clips.length) redrawCurrent(); else drawPlaceholder(); }
 
   // ──────────── Draw frame ────────────
-  function drawFrame(clip, globalTime) {
-    ctx.filter = "none";
-    ctx.fillStyle = $("bgColor").value; ctx.fillRect(0,0,canvas.width,canvas.height);
-    if (clip && clip.video.readyState >= 2) {
-      ctx.filter = filterStr();
-      const v = clip.video, cw = canvas.width, ch = canvas.height;
-      const vw = v.videoWidth, vh = v.videoHeight;
-      const cover = $("fitCover").checked, vr = vw/vh, cr = cw/ch;
-      let dw, dh, dx, dy;
+  function drawRectFor(clip) {
+    const v = clip.video, cw = canvas.width, ch = canvas.height;
+    const vw = v.videoWidth || 16, vh = v.videoHeight || 9;
+    const vr = vw/vh, cr = cw/ch;
+    let dw, dh, dx, dy;
+    if (clip.layer === "overlay") {
+      // default overlay = 30% width top-right
+      dw = cw * 0.3; dh = dw / vr;
+      dx = cw - dw - cw*0.02; dy = ch*0.02;
+    } else {
+      const cover = $("fitCover").checked;
       if (cover) {
         if (vr > cr) { dh = ch; dw = dh*vr; dx = (cw-dw)/2; dy = 0; }
         else { dw = cw; dh = dw/vr; dx = 0; dy = (ch-dh)/2; }
@@ -780,8 +851,42 @@
         if (vr > cr) { dw = cw; dh = dw/vr; dx = 0; dy = (ch-dh)/2; }
         else { dh = ch; dw = dh*vr; dx = (cw-dw)/2; dy = 0; }
       }
-      ctx.drawImage(v, dx, dy, dw, dh);
+    }
+    const t = clip.transform || { x:0, y:0, scale:1 };
+    const cx = dx + dw/2 + t.x * cw;
+    const cy = dy + dh/2 + t.y * ch;
+    dw *= t.scale; dh *= t.scale;
+    return { dx: cx - dw/2, dy: cy - dh/2, dw, dh };
+  }
+
+  function drawFrame(clip, globalTime) {
+    ctx.filter = "none";
+    ctx.fillStyle = $("bgColor").value; ctx.fillRect(0,0,canvas.width,canvas.height);
+    if (clip && clip.video.readyState >= 2) {
+      ctx.filter = filterStr();
+      const r = drawRectFor(clip);
+      ctx.drawImage(clip.video, r.dx, r.dy, r.dw, r.dh);
+      clip._rect = r;
       ctx.filter = "none";
+    }
+    // overlays
+    activeOverlays(globalTime).forEach(oc => {
+      if (oc.video.readyState < 2) return;
+      ctx.filter = filterStr();
+      const r = drawRectFor(oc);
+      ctx.drawImage(oc.video, r.dx, r.dy, r.dw, r.dh);
+      oc._rect = r;
+      ctx.filter = "none";
+      // selection outline
+      if (oc.id === state.selectedClipId) {
+        ctx.strokeStyle = "#4cc9f0"; ctx.lineWidth = Math.max(3, canvas.width/400);
+        ctx.strokeRect(r.dx, r.dy, r.dw, r.dh);
+      }
+    });
+    // main selection outline
+    if (clip && clip.id === state.selectedClipId && clip._rect) {
+      ctx.strokeStyle = "#4cc9f0"; ctx.lineWidth = Math.max(3, canvas.width/400);
+      ctx.strokeRect(clip._rect.dx, clip._rect.dy, clip._rect.dw, clip._rect.dh);
     }
     // text
     state.texts.forEach(t => {
@@ -800,6 +905,88 @@
     if (state.fadeOut > 0 && globalTime > total - state.fadeOut) fadeAlpha = Math.max(fadeAlpha, (globalTime - (total - state.fadeOut))/state.fadeOut);
     if (fadeAlpha > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1,fadeAlpha)})`; ctx.fillRect(0,0,canvas.width,canvas.height); }
   }
+
+  // ──────────── Canvas interaction (drag to move, wheel to scale) ────────────
+  function clipsOnStage(t) {
+    const list = [];
+    const { clip: mc } = clipAtGlobal(t);
+    if (mc) list.push(mc);
+    activeOverlays(t).forEach(oc => list.push(oc));
+    return list;
+  }
+  function canvasCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
+    const p = e.touches ? e.touches[0] : e;
+    return { x: (p.clientX - rect.left) * sx, y: (p.clientY - rect.top) * sy };
+  }
+  function hitTest(x, y) {
+    const t = state.playhead || 0;
+    const stack = clipsOnStage(t);
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const c = stack[i], r = c._rect;
+      if (r && x >= r.dx && x <= r.dx + r.dw && y >= r.dy && y <= r.dy + r.dh) return c;
+    }
+    return null;
+  }
+  let drag = null;
+  canvas.addEventListener("mousedown", (e) => {
+    const { x, y } = canvasCoords(e);
+    const hit = hitTest(x, y);
+    if (!hit) {
+      if (state.playing) return;
+      state.selectedClipId = null; renderSelectedPanel(); renderClipList(); redrawCurrent(); return;
+    }
+    selectClip(hit.id);
+    drag = { clip: hit, startX: x, startY: y, origX: hit.transform.x, origY: hit.transform.y };
+    canvas.style.cursor = "grabbing";
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!drag) {
+      if (state.playing) return;
+      const { x, y } = canvasCoords(e);
+      canvas.style.cursor = hitTest(x, y) ? "grab" : "default";
+      return;
+    }
+    const { x, y } = canvasCoords(e);
+    drag.clip.transform.x = drag.origX + (x - drag.startX) / canvas.width;
+    drag.clip.transform.y = drag.origY + (y - drag.startY) / canvas.height;
+    redrawCurrent();
+  });
+  window.addEventListener("mouseup", () => { if (drag) { drag = null; canvas.style.cursor = "default"; renderSelectedPanel(); } });
+  canvas.addEventListener("wheel", (e) => {
+    if (state.playing) return;
+    const { x, y } = canvasCoords(e);
+    const hit = hitTest(x, y) || state.clips.find(c => c.id === state.selectedClipId);
+    if (!hit) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.08 : 1/1.08;
+    hit.transform.scale = Math.max(0.1, Math.min(5, hit.transform.scale * factor));
+    if (hit.id !== state.selectedClipId) selectClip(hit.id);
+    else renderSelectedPanel();
+    redrawCurrent();
+  }, { passive: false });
+  // touch support
+  canvas.addEventListener("touchstart", (e) => {
+    if (state.playing) return;
+    const { x, y } = canvasCoords(e);
+    const hit = hitTest(x, y);
+    if (!hit) return;
+    selectClip(hit.id);
+    drag = { clip: hit, startX: x, startY: y, origX: hit.transform.x, origY: hit.transform.y };
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    if (!drag) return;
+    const { x, y } = canvasCoords(e);
+    drag.clip.transform.x = drag.origX + (x - drag.startX) / canvas.width;
+    drag.clip.transform.y = drag.origY + (y - drag.startY) / canvas.height;
+    redrawCurrent();
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("touchend", () => { if (drag) { drag = null; renderSelectedPanel(); } });
 
   // ──────────── Playback ────────────
   $("playBtn").addEventListener("click", async () => {
@@ -826,6 +1013,25 @@
     updateTimeLabel(0); drawPlaceholder(); setStatus("");
   });
 
+  function syncOverlays(t, forExport) {
+    const active = new Set(activeOverlays(t).map(c => c.id));
+    overlayClips().forEach(oc => {
+      const v = oc.video;
+      if (active.has(oc.id)) {
+        const want = oc.trimStart + (t - oc.startAt) * oc.speed;
+        if (v.paused || Math.abs(v.currentTime - want) > 0.4) {
+          try { v.currentTime = Math.min(oc.trimEnd - 0.01, Math.max(oc.trimStart, want)); } catch(e){}
+        }
+        v.playbackRate = oc.speed;
+        if (!forExport) { v.muted = false; v.volume = state.clipVol; }
+        if (v.paused) v.play().catch(()=>{});
+      } else {
+        if (!v.paused) v.pause();
+      }
+    });
+  }
+  function pauseAllOverlays() { overlayClips().forEach(oc => { if (!oc.video.paused) oc.video.pause(); }); }
+
   async function playSequence(forExport, onFrame) {
     const startTime = (!forExport && state.playhead > 0) ? state.playhead : 0;
     let globalTime = 0;
@@ -835,7 +1041,7 @@
       state.bgAudio.audio.currentTime = Math.min(startTime, state.bgAudio.duration - 0.1);
       try { await state.bgAudio.audio.play(); } catch(e){}
     }
-    for (const clip of state.clips) {
+    for (const clip of mainClips()) {
       const d = effDur(clip);
       if (first && globalTime + d <= startTime) { globalTime += d; continue; }
       if (!state.playing && !forExport) break;
@@ -856,12 +1062,14 @@
       const startPerf = performance.now();
       await new Promise((resolve) => {
         const tick = () => {
-          if (!state.playing && !forExport) { v.pause(); resolve(); return; }
+          if (!state.playing && !forExport) { v.pause(); pauseAllOverlays(); resolve(); return; }
           const elapsed = (performance.now() - startPerf)/1000;
           if (elapsed >= remaining || v.currentTime >= clip.trimEnd || v.ended) { v.pause(); resolve(); return; }
           const t = globalTime + localStart + elapsed;
+          syncOverlays(t, forExport);
           drawFrame(clip, t);
           updateTimeLabel(t);
+          state.playhead = t;
           if (onFrame) onFrame(t);
           requestAnimationFrame(tick);
         };
@@ -870,6 +1078,7 @@
       if (!forExport) v.muted = true;
       globalTime += d;
     }
+    pauseAllOverlays();
     if (state.bgAudio && !state.paused) { state.bgAudio.audio.pause(); state.bgAudio.audio.currentTime = 0; }
     if (!state.paused) { drawPlaceholder(); updateTimeLabel(0); }
   }
@@ -931,6 +1140,13 @@
   }
 
   async function exportFast() {
+    // ffmpeg path only handles main-sequence clips with no transforms.
+    const hasOverlays = overlayClips().length > 0;
+    const hasTransform = state.clips.some(c => c.transform && (c.transform.x || c.transform.y || c.transform.scale !== 1));
+    if (hasOverlays || hasTransform) {
+      setStatus("Overlays or repositioned clips detected — using real-time export to preserve layout.", "ok");
+      await exportVideo(); return;
+    }
     let ff;
     try { ff = await loadFfmpeg(); }
     catch (err) {
