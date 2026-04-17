@@ -654,7 +654,7 @@
   // ──────────── Timeline ────────────
   function renderTimeline() {
     const vt = $("videoTrack"), at = $("audioTrack"), ruler = $("ruler");
-    vt.querySelectorAll(".tl-clip").forEach(e=>e.remove());
+    vt.innerHTML = "";
     at.innerHTML = "";
     const total = Math.max(totalDur(), state.bgAudio ? state.bgAudio.duration : 0, 5);
     // ruler
@@ -666,37 +666,69 @@
       tick.textContent = formatTime(t);
       ruler.appendChild(tick);
     }
-    // main clips (sequential)
-    let acc = 0;
-    mainClips().forEach(c => {
-      const d = effDur(c);
-      const el = document.createElement("div");
-      el.className = "tl-clip" + (c.id === state.selectedClipId ? " selected" : "");
-      el.style.left = (acc/total*100)+"%";
-      el.style.width = (d/total*100)+"%";
-      el.title = `${c.name} · ${d.toFixed(1)}s`;
-      el.innerHTML = `<div class="handle left" data-trim="start" data-id="${c.id}"></div>${c.name}<div class="handle right" data-trim="end" data-id="${c.id}"></div>`;
-      el.addEventListener("click", (e) => { if (!e.target.classList.contains("handle")) selectClip(c.id); });
-      vt.appendChild(el);
-      el.querySelectorAll(".handle").forEach(h => h.addEventListener("mousedown", (ev) => startTrimDrag(ev, c, h.dataset.trim, total)));
-      acc += d;
-    });
-    // overlay clips (on top row, positioned at startAt)
-    overlayClips().forEach(c => {
-      const d = effDur(c);
-      const el = document.createElement("div");
-      el.className = "tl-clip overlay" + (c.id === state.selectedClipId ? " selected" : "");
-      el.style.left = ((c.startAt||0)/total*100)+"%";
-      el.style.width = (d/total*100)+"%";
-      el.style.top = "2px"; el.style.height = "18px";
-      el.style.background = "linear-gradient(135deg, #7c3aed, #c026d3)";
-      el.style.fontSize = "10px";
-      el.title = `Overlay · ${c.name} · starts ${(c.startAt||0).toFixed(1)}s`;
-      el.textContent = "▣ " + c.name;
-      el.addEventListener("mousedown", (ev) => startOverlayDrag(ev, c, total));
-      el.addEventListener("click", () => selectClip(c.id));
-      vt.appendChild(el);
-    });
+
+    // Render each video layer as a separate row
+    for (let layerIdx = 0; layerIdx < 5; layerIdx++) {
+      const layerClips = clipsInLayer(layerIdx);
+      if (layerClips.length === 0) continue; // Skip empty layers
+
+      const layerRow = document.createElement("div");
+      layerRow.style.position = "relative";
+      layerRow.style.height = "30px";
+      layerRow.style.borderBottom = "1px solid var(--border)";
+      layerRow.style.marginBottom = "4px";
+
+      const layerLabel = document.createElement("div");
+      layerLabel.style.position = "absolute";
+      layerLabel.style.left = "-60px";
+      layerLabel.style.top = "6px";
+      layerLabel.style.fontSize = "11px";
+      layerLabel.style.color = "var(--muted)";
+      layerLabel.style.width = "55px";
+      layerLabel.style.textAlign = "right";
+      layerLabel.textContent = `Layer ${layerIdx + 1}`;
+      layerRow.appendChild(layerLabel);
+
+      if (layerIdx === 0) {
+        // Layer 0: sequential clips
+        let acc = 0;
+        layerClips.forEach(c => {
+          const d = effDur(c);
+          const el = document.createElement("div");
+          el.className = "tl-clip" + (c.id === state.selectedClipId ? " selected" : "");
+          el.style.position = "absolute";
+          el.style.left = (acc/total*100)+"%";
+          el.style.width = (d/total*100)+"%";
+          el.style.top = "0"; el.style.height = "100%";
+          el.title = `${c.name} · ${d.toFixed(1)}s`;
+          el.innerHTML = `<div class="handle left" data-trim="start" data-id="${c.id}"></div><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.name}</span><div class="handle right" data-trim="end" data-id="${c.id}"></div>`;
+          el.addEventListener("click", (e) => { if (!e.target.classList.contains("handle")) selectClip(c.id); });
+          layerRow.appendChild(el);
+          el.querySelectorAll(".handle").forEach(h => h.addEventListener("mousedown", (ev) => startTrimDrag(ev, c, h.dataset.trim, total)));
+          acc += d;
+        });
+      } else {
+        // Layers 1-4: overlays positioned by startAt
+        layerClips.forEach(c => {
+          const d = effDur(c);
+          const el = document.createElement("div");
+          el.className = "tl-clip overlay" + (c.id === state.selectedClipId ? " selected" : "");
+          el.style.position = "absolute";
+          el.style.left = ((c.startAt||0)/total*100)+"%";
+          el.style.width = (d/total*100)+"%";
+          el.style.top = "2px"; el.style.height = "26px";
+          el.style.background = `hsl(${260 + layerIdx * 15}, 70%, 50%)`;
+          el.style.fontSize = "10px";
+          el.title = `Layer ${layerIdx+1} · ${c.name} · starts ${(c.startAt||0).toFixed(1)}s`;
+          el.textContent = c.name;
+          el.addEventListener("mousedown", (ev) => startOverlayDrag(ev, c, total));
+          el.addEventListener("click", () => selectClip(c.id));
+          layerRow.appendChild(el);
+        });
+      }
+
+      vt.appendChild(layerRow);
+    }
     // per-clip linked audio (mirror main clips only)
     let aAcc = 0;
     mainClips().forEach(c => {
