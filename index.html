@@ -436,6 +436,13 @@
     playhead: 0,
   };
 
+  // Layer system: clips have `layer` (0-4 for video, or "audio" for audio)
+  function clipsInLayer(idx) { return state.clips.filter(c => c.layer === idx); }
+  function mainClips() { return clipsInLayer(0); } // Layer 0
+  function overlayClips() { return state.clips.filter(c => c.layer > 0 && typeof c.layer === 'number'); } // Layers 1-4
+  function audioClips() { return state.clips.filter(c => c.layer === "audio"); }
+  function totalDur() { return mainClips().reduce((s,c) => s + effDur(c), 0); }
+
   const $ = (id) => document.getElementById(id);
   const canvas = $("preview"), ctx = canvas.getContext("2d");
 
@@ -494,7 +501,7 @@
           try { video.currentTime = 0.01; } catch(e){}
           setTimeout(ok, 1500);
         });
-        return { ok: true, clip: { id: crypto.randomUUID(), file: f, url, video, duration: video.duration, trimStart: 0, trimEnd: video.duration, speed: 1, name: f.name, layer: "main", transform: { x: 0, y: 0, scale: 1 }, startAt: 0 } };
+        return { ok: true, clip: { id: crypto.randomUUID(), file: f, url, video, duration: video.duration, trimStart: 0, trimEnd: video.duration, speed: 1, name: f.name, layer: 0, transform: { x: 0, y: 0, scale: 1 }, startAt: 0 } };
       } catch (err) { console.warn(err); return { ok: false, reason: err.message, name: f.name }; }
     }));
     // preserve picker order
@@ -525,9 +532,10 @@
     state.clips.forEach((c, i) => {
       const el = document.createElement("div");
       el.className = "clip" + (c.id === state.selectedClipId ? " selected" : "");
+      const layerLabel = c.layer === 0 ? "L1" : c.layer > 0 ? `L${c.layer+1}` : "?";
       el.innerHTML = `
         <video src="${c.url}" muted></video>
-        <div class="meta"><div class="name" title="${c.name}">${c.name}</div><div class="details">${effDur(c).toFixed(1)}s · ${(c.file.size/1024/1024).toFixed(1)}MB</div></div>
+        <div class="meta"><div class="name" title="${c.name}"><span style="background:var(--accent);color:#000;padding:1px 4px;border-radius:3px;font-size:9px;font-weight:700;margin-right:4px;">${layerLabel}</span>${c.name}</div><div class="details">${effDur(c).toFixed(1)}s · ${(c.file.size/1024/1024).toFixed(1)}MB</div></div>
         <div class="actions">
           <button data-up="${c.id}" ${i===0?"disabled":""}>▲</button>
           <button data-down="${c.id}" ${i===state.clips.length-1?"disabled":""}>▼</button>
@@ -543,9 +551,6 @@
   function move(id, dir) { const i = state.clips.findIndex(c=>c.id===id), j=i+dir; if(j<0||j>=state.clips.length) return; [state.clips[i],state.clips[j]]=[state.clips[j],state.clips[i]]; renderAll(); }
   function del(id) { const i = state.clips.findIndex(c=>c.id===id); if(i>=0){ URL.revokeObjectURL(state.clips[i].url); state.clips.splice(i,1); if(state.selectedClipId===id) state.selectedClipId=null; renderAll(); }}
   function effDur(c) { return (c.trimEnd - c.trimStart) / c.speed; }
-  function mainClips() { return state.clips.filter(c => c.layer === "main"); }
-  function overlayClips() { return state.clips.filter(c => c.layer === "overlay"); }
-  function totalDur() { return mainClips().reduce((s,c)=>s+effDur(c), 0); }
 
   // ──────────── Selection & clip settings ────────────
   function selectClip(id) { state.selectedClipId = id; renderSelectedPanel(); renderClipList(); renderTimeline(); }
@@ -557,9 +562,9 @@
     panel.innerHTML = `
       <div style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:8px;">${c.name}</div>
       <div class="field"><label>Layer</label><select id="clipLayer">
-        <option value="main">Main (sequence)</option><option value="overlay">Overlay (on top)</option>
+        <option value="0">Layer 1 (base)</option><option value="1">Layer 2 (overlay)</option><option value="2">Layer 3 (overlay)</option><option value="3">Layer 4 (overlay)</option><option value="4">Layer 5 (overlay)</option>
       </select></div>
-      <div class="field" id="startAtField" style="${c.layer==='overlay'?'':'display:none'}"><label>Overlay starts at (s)</label><input type="number" id="clipStartAt" min="0" step="0.1" value="${(c.startAt||0).toFixed(2)}"/></div>
+      <div class="field" id="startAtField" style="${c.layer > 0 ? '' : 'display:none'}"><label>Starts at (s)</label><input type="number" id="clipStartAt" min="0" step="0.1" value="${(c.startAt||0).toFixed(2)}"/></div>
       <div class="field"><label>Trim start (s)</label><input type="number" id="trimStart" min="0" max="${c.duration}" step="0.1" value="${c.trimStart.toFixed(2)}"/></div>
       <div class="field"><label>Trim end (s)</label><input type="number" id="trimEnd" min="0" max="${c.duration}" step="0.1" value="${c.trimEnd.toFixed(2)}"/></div>
       <div class="field"><label>Speed</label><select id="clipSpeed">
@@ -570,9 +575,9 @@
         <button id="resetXform" class="btn" style="flex:1; font-size:11px;">Reset position & size</button>
       </div>
       <div style="font-size:11px; color:var(--muted); margin-top:6px;">Drag the clip on the preview to move it · scroll wheel to resize · Duration ${effDur(c).toFixed(2)}s</div>`;
-    $("clipLayer").value = c.layer || "main";
+    $("clipLayer").value = c.layer || "0";
     $("trimStart").value = c.trimStart; $("trimEnd").value = c.trimEnd; $("clipSpeed").value = c.speed;
-    $("clipLayer").addEventListener("change", (e) => { c.layer = e.target.value; if (c.layer === "overlay" && !c.startAt) c.startAt = state.playhead || 0; renderSelectedPanel(); renderTimeline(); redrawCurrent(); });
+    $("clipLayer").addEventListener("change", (e) => { c.layer = parseInt(e.target.value); if (c.layer > 0 && !c.startAt) c.startAt = state.playhead || 0; renderSelectedPanel(); renderTimeline(); redrawCurrent(); });
     $("trimStart").addEventListener("input", (e) => { c.trimStart = Math.max(0, Math.min(c.trimEnd - 0.1, parseFloat(e.target.value)||0)); renderSelectedPanel(); renderTimeline(); renderClipList(); });
     $("trimEnd").addEventListener("input", (e) => { c.trimEnd = Math.max(c.trimStart + 0.1, Math.min(c.duration, parseFloat(e.target.value)||c.duration)); renderSelectedPanel(); renderTimeline(); renderClipList(); });
     $("clipSpeed").addEventListener("change", (e) => { c.speed = parseFloat(e.target.value); renderSelectedPanel(); renderTimeline(); renderClipList(); });
