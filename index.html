@@ -311,9 +311,10 @@
       <button id="deleteBtn" class="danger" title="Delete selected clip (Del)">🗑 Delete</button>
       <span class="time" id="timeLabel">0:00 / 0:00</span>
       <div class="spacer"></div>
-      <select id="fpsSel" title="FPS" style="display:none;"><option value="24">24fps</option><option value="30" selected>30fps</option><option value="60">60fps</option></select>
-      <select id="qualitySel" title="Quality" style="display:none;"><option value="2500000">Low</option><option value="5000000" selected>Medium</option><option value="8000000">High</option></select>
+      <select id="fpsSel" title="FPS"><option value="24">24fps</option><option value="30" selected>30fps</option><option value="60">60fps</option></select>
+      <select id="qualitySel" title="Quality"><option value="2500000">Low</option><option value="5000000" selected>Medium</option><option value="8000000">High</option></select>
       <button id="exportBtn" class="primary">⚡ Fast export</button>
+      <button id="exportSlowBtn">↓ Export w/ effects</button>
     </div>
     <div class="progress" id="progress"><div class="bar" id="progressBar"></div><div class="pct" id="progressPct">0%</div></div>
     <div class="status" id="status"></div>
@@ -1196,7 +1197,7 @@
   }
 
   // ──────────── Export ────────────
-  const exportIds = ["playBtn","pauseBtn","stopBtn","splitBtn","deleteBtn","exportBtn"];
+  const exportIds = ["playBtn","pauseBtn","stopBtn","splitBtn","deleteBtn","exportBtn","exportSlowBtn"];
 
   async function runExport(fn) {
     if (!state.clips.length) { setStatus("Add at least one clip", "err"); return; }
@@ -1211,6 +1212,7 @@
     }
   }
   $("exportBtn").addEventListener("click", () => runExport(exportFast));
+  $("exportSlowBtn").addEventListener("click", () => runExport(exportVideo));
 
   async function saveBlob(blob, suggestedName) {
     const ext = suggestedName.split(".").pop();
