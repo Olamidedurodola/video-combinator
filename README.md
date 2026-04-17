@@ -1,6 +1,6 @@
 # Video Combinator
 
-A powerful, fully client-side video editor that merges **short videos** with speed control, text overlays, and social-media framing. No server required — runs entirely in your browser.
+A powerful, fully client-side video editor that merges **short videos** with speed control, text overlays, and social-media framing. No server required, runs entirely in your browser.
 
 ## Live Demo
 
