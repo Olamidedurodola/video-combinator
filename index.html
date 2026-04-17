@@ -28,8 +28,16 @@
   header h1 { margin: 0; font-size: 20px; letter-spacing: .5px; }
   header h1 span { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   header .sub { color: var(--muted); font-size: 12px; }
-  .links a, .links button { color: var(--accent-2); text-decoration: none; margin-left: 14px; font-size: 13px; cursor: pointer; background: none; border: none; font-family: inherit; }
+  .links { display: flex; gap: 12px; }
+  .links a, .links button { color: var(--accent-2); text-decoration: none; font-size: 13px; cursor: pointer; background: none; border: none; font-family: inherit; }
   .links a:hover, .links button:hover { text-decoration: underline; }
+  @media (max-width: 600px) {
+    header { padding: 10px 14px; }
+    .brand { gap: 8px; }
+    header h1 { font-size: 16px; }
+    header .sub { font-size: 11px; display: none; }
+    .links button { font-size: 12px; }
+  }
 
   .app { display: grid; grid-template-columns: 72px 260px 1fr 300px; grid-template-rows: 1fr auto; height: calc(100vh - 55px); gap: 0; flex: 1; }
   @media (max-width: 1200px) { .app { grid-template-columns: 72px 240px 1fr 260px; } }
@@ -80,10 +88,16 @@
   .preview-wrap { flex: 1; background: black; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 300px; }
   .preview-wrap canvas { max-width: 100%; max-height: 100%; }
 
-  .playbar { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
-  .playbar .time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .playbar { display: flex; align-items: center; gap: 10px; padding: 10px 0; overflow-x: auto; flex-wrap: wrap; }
+  .playbar .time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .playbar .spacer { flex: 1; }
-  .playbar button { padding: 7px 12px; }
+  .playbar button { padding: 7px 12px; flex-shrink: 0; }
+  .playbar select { padding: 5px 8px; font-size: 12px; flex-shrink: 0; }
+  @media (max-width: 600px) {
+    .playbar { flex-wrap: wrap; gap: 6px; padding: 8px 0; }
+    .playbar button, .playbar select { padding: 6px 8px; font-size: 11px; }
+    .playbar .spacer { flex-basis: 100%; }
+  }
 
   /* Right panel */
   .rightpanel { background: var(--panel); border-left: 1px solid var(--border); padding: 14px; overflow-y: auto; }
