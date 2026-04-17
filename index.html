@@ -123,6 +123,9 @@
   .timeline-ruler .tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); padding-left: 3px; font-variant-numeric: tabular-nums; }
   .track-label { color: var(--muted); font-size: 11px; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; }
   .track { position: relative; height: 48px; background: var(--panel-2); border-radius: 6px; overflow: hidden; }
+  #videoTrack { height: auto; min-height: 32px; display: flex; flex-direction: column; overflow: visible; }
+  .layer-row { position: relative; height: 32px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .layer-row-label { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--muted); background: rgba(15,16,32,0.75); padding: 1px 4px; border-radius: 3px; z-index: 5; pointer-events: none; white-space: nowrap; }
   .track.audio-track { height: 40px; margin-top: 6px; position: relative; }
   .tl-audio-clip.linked { background: linear-gradient(135deg, rgba(124,92,255,0.35), rgba(76,201,240,0.25)); border-color: var(--accent); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 8px; }
   .tl-audio-clip.bg-music { background: linear-gradient(135deg, rgba(61,220,151,0.5), rgba(61,220,151,0.3)); }
@@ -172,6 +175,16 @@
   .modal .close-x { float: right; background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 0; line-height: 1; }
   .modal .close-x:hover { color: var(--text); }
   .field-row { margin-bottom: 10px; }
+
+  /* Speed control */
+  .speed-panel { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .speed-panel .sp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .speed-panel .sp-title { font-size: 13px; font-weight: 700; color: var(--text); }
+  .speed-panel .sp-input { width: 56px; text-align: center; padding: 4px 6px; font-size: 14px; font-weight: 700; border-radius: 6px; }
+  .speed-panel input[type="range"] { width: 100%; accent-color: var(--accent); height: 4px; cursor: pointer; }
+  .speed-panel .sp-ticks { display: flex; justify-content: space-between; margin-top: 4px; }
+  .speed-panel .sp-ticks span { font-size: 10px; color: var(--muted); }
+  .speed-panel .sp-normal { font-size: 11px; color: var(--accent-2); background: none; border: 1px solid var(--accent-2); border-radius: 5px; padding: 2px 8px; cursor: pointer; margin-top: 8px; display: block; width: 100%; }
 </style>
 </head>
 <body>
@@ -308,6 +321,10 @@
 
   <!-- Right panel: effects -->
   <aside class="rightpanel">
+    <h3>Selected clip</h3>
+    <div id="selectedClipPanel" class="hint" style="color:var(--muted); font-size:12px;">Click a clip in the timeline to edit trim & speed.</div>
+
+    <div style="height:14px"></div>
     <h3>Filters</h3>
     <div class="field"><label>Brightness</label><div class="range-row"><input type="range" id="fBrightness" min="0" max="200" value="100"/><span class="val" id="fBrightnessVal">100%</span></div></div>
     <div class="field"><label>Contrast</label><div class="range-row"><input type="range" id="fContrast" min="0" max="200" value="100"/><span class="val" id="fContrastVal">100%</span></div></div>
@@ -321,10 +338,6 @@
     <h3>Fade</h3>
     <div class="field"><label>Fade in (s)</label><div class="range-row"><input type="range" id="fadeIn" min="0" max="5" step="0.1" value="0"/><span class="val" id="fadeInVal">0.0s</span></div></div>
     <div class="field"><label>Fade out (s)</label><div class="range-row"><input type="range" id="fadeOut" min="0" max="5" step="0.1" value="0"/><span class="val" id="fadeOutVal">0.0s</span></div></div>
-
-    <div style="height:14px"></div>
-    <h3>Selected clip</h3>
-    <div id="selectedClipPanel" class="hint" style="color:var(--muted); font-size:12px;">Click a clip in the timeline to edit trim & speed.</div>
   </aside>
 
   <!-- Timeline -->
@@ -558,28 +571,51 @@
     const c = state.clips.find(c => c.id === state.selectedClipId);
     if (!c) { panel.innerHTML = '<div style="color:var(--muted); font-size:12px;">Click a clip in the timeline to edit trim & speed.</div>'; return; }
     const tr = c.transform || { x:0, y:0, scale:1 };
+    // speed slider uses log scale: map 0.1–16 onto 0–100
+    const speedToSlider = s => Math.round((Math.log(s) - Math.log(0.1)) / (Math.log(16) - Math.log(0.1)) * 100);
+    const sliderToSpeed = v => parseFloat((Math.exp(Math.log(0.1) + (v/100) * (Math.log(16) - Math.log(0.1)))).toFixed(2));
     panel.innerHTML = `
-      <div style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:8px;">${c.name}</div>
+      <div style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${c.name}">${c.name}</div>
+
+      <div class="speed-panel">
+        <div class="sp-header">
+          <span class="sp-title">⚡ Speed</span>
+          <input class="sp-input" type="number" id="speedNum" min="0.1" max="16" step="0.01" value="${c.speed}"/>
+        </div>
+        <input type="range" id="speedSlider" min="0" max="100" value="${speedToSlider(c.speed)}"/>
+        <div class="sp-ticks"><span>0.1×</span><span>1×</span><span>2×</span><span>4×</span><span>16×</span></div>
+        <button class="sp-normal" id="speedNormal">Normal (1×)</button>
+      </div>
+
       <div class="field"><label>Layer</label><select id="clipLayer">
         <option value="0">Layer 1 (base)</option><option value="1">Layer 2 (overlay)</option><option value="2">Layer 3 (overlay)</option><option value="3">Layer 4 (overlay)</option><option value="4">Layer 5 (overlay)</option>
       </select></div>
       <div class="field" id="startAtField" style="${c.layer > 0 ? '' : 'display:none'}"><label>Starts at (s)</label><input type="number" id="clipStartAt" min="0" step="0.1" value="${(c.startAt||0).toFixed(2)}"/></div>
       <div class="field"><label>Trim start (s)</label><input type="number" id="trimStart" min="0" max="${c.duration}" step="0.1" value="${c.trimStart.toFixed(2)}"/></div>
       <div class="field"><label>Trim end (s)</label><input type="number" id="trimEnd" min="0" max="${c.duration}" step="0.1" value="${c.trimEnd.toFixed(2)}"/></div>
-      <div class="field"><label>Speed</label><select id="clipSpeed">
-        <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option>
-      </select></div>
       <div class="field"><label>Scale <span id="scaleVal" style="color:var(--muted)">${(tr.scale*100).toFixed(0)}%</span></label><input type="range" id="clipScale" min="0.1" max="3" step="0.01" value="${tr.scale}"/></div>
       <div style="display:flex; gap:6px; margin-top:6px;">
-        <button id="resetXform" class="btn" style="flex:1; font-size:11px;">Reset position & size</button>
+        <button id="resetXform" style="flex:1; font-size:11px;">Reset position & size</button>
       </div>
-      <div style="font-size:11px; color:var(--muted); margin-top:6px;">Drag the clip on the preview to move it · scroll wheel to resize · Duration ${effDur(c).toFixed(2)}s</div>`;
+      <div style="font-size:11px; color:var(--muted); margin-top:6px;">Drag the clip on the preview to move it · scroll wheel to resize · Duration <strong>${effDur(c).toFixed(2)}s</strong></div>`;
+
     $("clipLayer").value = c.layer || "0";
-    $("trimStart").value = c.trimStart; $("trimEnd").value = c.trimEnd; $("clipSpeed").value = c.speed;
+    $("trimStart").value = c.trimStart; $("trimEnd").value = c.trimEnd;
+
+    const applySpeed = (s) => {
+      s = Math.max(0.1, Math.min(16, s));
+      c.speed = s;
+      $("speedNum").value = s.toFixed(2);
+      $("speedSlider").value = speedToSlider(s);
+      renderTimeline(); renderClipList();
+    };
+    $("speedSlider").addEventListener("input", (e) => applySpeed(sliderToSpeed(parseInt(e.target.value))));
+    $("speedNum").addEventListener("input", (e) => applySpeed(parseFloat(e.target.value)||1));
+    $("speedNormal").addEventListener("click", () => applySpeed(1));
+
     $("clipLayer").addEventListener("change", (e) => { c.layer = parseInt(e.target.value); if (c.layer > 0 && !c.startAt) c.startAt = state.playhead || 0; renderSelectedPanel(); renderTimeline(); redrawCurrent(); });
     $("trimStart").addEventListener("input", (e) => { c.trimStart = Math.max(0, Math.min(c.trimEnd - 0.1, parseFloat(e.target.value)||0)); renderSelectedPanel(); renderTimeline(); renderClipList(); });
     $("trimEnd").addEventListener("input", (e) => { c.trimEnd = Math.max(c.trimStart + 0.1, Math.min(c.duration, parseFloat(e.target.value)||c.duration)); renderSelectedPanel(); renderTimeline(); renderClipList(); });
-    $("clipSpeed").addEventListener("change", (e) => { c.speed = parseFloat(e.target.value); renderSelectedPanel(); renderTimeline(); renderClipList(); });
     const startAtEl = $("clipStartAt");
     if (startAtEl) startAtEl.addEventListener("input", (e) => { c.startAt = Math.max(0, parseFloat(e.target.value)||0); renderTimeline(); redrawCurrent(); });
     $("clipScale").addEventListener("input", (e) => { c.transform.scale = parseFloat(e.target.value); $("scaleVal").textContent = (c.transform.scale*100).toFixed(0)+"%"; redrawCurrent(); });
@@ -610,14 +646,16 @@
     $(id).addEventListener("input", (e) => {
       state.filters[key] = parseFloat(e.target.value);
       $(id+"Val").textContent = e.target.value + unit;
+      redrawCurrent();
     });
   });
   $("resetFilters").addEventListener("click", () => {
     state.filters = { brightness:100, contrast:100, saturate:100, grayscale:0, sepia:0, blur:0 };
     filterMap.forEach(([id,key,unit]) => { $(id).value = state.filters[key]; $(id+"Val").textContent = state.filters[key]+unit; });
+    redrawCurrent();
   });
-  $("fadeIn").addEventListener("input", (e) => { state.fadeIn = parseFloat(e.target.value); $("fadeInVal").textContent = state.fadeIn.toFixed(1)+"s"; });
-  $("fadeOut").addEventListener("input", (e) => { state.fadeOut = parseFloat(e.target.value); $("fadeOutVal").textContent = state.fadeOut.toFixed(1)+"s"; });
+  $("fadeIn").addEventListener("input", (e) => { state.fadeIn = parseFloat(e.target.value); $("fadeInVal").textContent = state.fadeIn.toFixed(1)+"s"; redrawCurrent(); });
+  $("fadeOut").addEventListener("input", (e) => { state.fadeOut = parseFloat(e.target.value); $("fadeOutVal").textContent = state.fadeOut.toFixed(1)+"s"; redrawCurrent(); });
 
   // ──────────── Text overlays ────────────
   $("addTextBtn").addEventListener("click", () => { state.texts.push({ text:"Your text", start:0, end:3, size:64, color:"#ffffff", pos:"bottom" }); renderTexts(); });
@@ -654,8 +692,11 @@
   // ──────────── Timeline ────────────
   function renderTimeline() {
     const vt = $("videoTrack"), at = $("audioTrack"), ruler = $("ruler");
+    // preserve the playhead element before clearing
+    const ph = $("playhead") || (() => { const d=document.createElement("div"); d.className="playhead"; d.id="playhead"; d.style.left="0px"; return d; })();
     vt.innerHTML = "";
     at.innerHTML = "";
+    vt.appendChild(ph); // re-attach playhead first so it's always in the DOM
     const total = Math.max(totalDur(), state.bgAudio ? state.bgAudio.duration : 0, 5);
     // ruler
     ruler.innerHTML = "";
@@ -673,20 +714,11 @@
       if (layerClips.length === 0) continue; // Skip empty layers
 
       const layerRow = document.createElement("div");
-      layerRow.style.position = "relative";
-      layerRow.style.height = "30px";
-      layerRow.style.borderBottom = "1px solid var(--border)";
-      layerRow.style.marginBottom = "4px";
+      layerRow.className = "layer-row";
 
       const layerLabel = document.createElement("div");
-      layerLabel.style.position = "absolute";
-      layerLabel.style.left = "-60px";
-      layerLabel.style.top = "6px";
-      layerLabel.style.fontSize = "11px";
-      layerLabel.style.color = "var(--muted)";
-      layerLabel.style.width = "55px";
-      layerLabel.style.textAlign = "right";
-      layerLabel.textContent = `Layer ${layerIdx + 1}`;
+      layerLabel.className = "layer-row-label";
+      layerLabel.textContent = layerIdx === 0 ? "L1 Base" : `L${layerIdx + 1}`;
       layerRow.appendChild(layerLabel);
 
       if (layerIdx === 0) {
@@ -892,8 +924,8 @@
     const vw = v.videoWidth || 16, vh = v.videoHeight || 9;
     const vr = vw/vh, cr = cw/ch;
     let dw, dh, dx, dy;
-    if (clip.layer === "overlay") {
-      // default overlay = 30% width top-right
+    if (clip.layer > 0) {
+      // overlay: use clip transform for position/size, default top-right 30% width
       dw = cw * 0.3; dh = dw / vr;
       dx = cw - dw - cw*0.02; dy = ch*0.02;
     } else {
@@ -1138,22 +1170,21 @@
   }
 
   // ──────────── Export ────────────
-  const exportIds = ["playBtn","pauseBtn","stopBtn","splitBtn","deleteBtn","exportBtn","exportSlowBtn"];
+  const exportIds = ["playBtn","pauseBtn","stopBtn","splitBtn","deleteBtn","exportBtn"];
 
   async function runExport(fn) {
     if (!state.clips.length) { setStatus("Add at least one clip", "err"); return; }
     if (state.exporting || state.playing) { setStatus("Stop playback first", "err"); return; }
     state.exporting = true; state.playing = true; state.playhead = 0;
-    exportIds.forEach(id => $(id).disabled = true);
+    exportIds.forEach(id => { const el=$(id); if(el) el.disabled = true; });
     try { await fn(); }
     catch (err) { console.error(err); setStatus("Export failed: " + (err.message || err), "err"); }
     finally {
       state.exporting = false; state.playing = false;
-      exportIds.forEach(id => $(id).disabled = false);
+      exportIds.forEach(id => { const el=$(id); if(el) el.disabled = false; });
     }
   }
   $("exportBtn").addEventListener("click", () => runExport(exportFast));
-  $("exportSlowBtn").addEventListener("click", () => runExport(exportVideo));
 
   async function saveBlob(blob, suggestedName) {
     const ext = suggestedName.split(".").pop();
