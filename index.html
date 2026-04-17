@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Video Combinator · Merge, Edit & Export Short Videos</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%237c5cff'/><stop offset='100%25' stop-color='%234cc9f0'/></linearGradient></defs><rect x='2' y='8' width='18' height='16' rx='3' fill='url(%23g)'/><path d='M30 10L22 15l8 5z' fill='url(%23g)'/><circle cx='11' cy='16' r='3.5' fill='%230f1020'/><polygon points='9.5,13.5 14,16 9.5,18.5' fill='%23eef0ff'/></svg>"/>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
 <style>
   :root {
     --bg: #0f1020;
@@ -269,7 +271,8 @@
       <div class="spacer"></div>
       <select id="fpsSel" title="FPS"><option value="24">24fps</option><option value="30" selected>30fps</option><option value="60">60fps</option></select>
       <select id="qualitySel" title="Quality"><option value="2500000">Low</option><option value="5000000" selected>Medium</option><option value="8000000">High</option></select>
-      <button id="exportBtn" class="primary">⬇ Export</button>
+      <button id="exportBtn" class="primary">⚡ Fast export</button>
+      <button id="exportSlowBtn" title="Real-time export with filters/text/fade/music">⬇ Export w/ effects</button>
     </div>
     <div class="progress" id="progress"><div class="bar" id="progressBar"></div><div class="pct" id="progressPct">0%</div></div>
     <div class="status" id="status"></div>
@@ -862,20 +865,133 @@
   }
 
   // ──────────── Export ────────────
-  $("exportBtn").addEventListener("click", async () => {
+  const exportIds = ["playBtn","pauseBtn","stopBtn","splitBtn","deleteBtn","exportBtn","exportSlowBtn"];
+
+  async function runExport(fn) {
     if (!state.clips.length) { setStatus("Add at least one clip", "err"); return; }
     if (state.exporting || state.playing) { setStatus("Stop playback first", "err"); return; }
     state.exporting = true; state.playing = true; state.playhead = 0;
-    ["playBtn","pauseBtn","stopBtn","splitBtn","deleteBtn","exportBtn"].forEach(id => $(id).disabled = true);
-    try {
-      await exportVideo();
-    } catch (err) {
-      setStatus("Export failed: " + (err.message || err), "err");
-    } finally {
+    exportIds.forEach(id => $(id).disabled = true);
+    try { await fn(); }
+    catch (err) { console.error(err); setStatus("Export failed: " + (err.message || err), "err"); }
+    finally {
       state.exporting = false; state.playing = false;
-      ["playBtn","pauseBtn","stopBtn","splitBtn","deleteBtn","exportBtn"].forEach(id => $(id).disabled = false);
+      exportIds.forEach(id => $(id).disabled = false);
     }
-  });
+  }
+  $("exportBtn").addEventListener("click", () => runExport(exportFast));
+  $("exportSlowBtn").addEventListener("click", () => runExport(exportVideo));
+
+  async function saveBlob(blob, suggestedName) {
+    const ext = suggestedName.split(".").pop();
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [{ description: "Video", accept: { [blob.type || "video/mp4"]: ["."+ext] } }]
+        });
+        const w = await handle.createWritable();
+        await w.write(blob); await w.close();
+        return handle.name;
+      } catch (err) {
+        if (err.name === "AbortError") { setStatus("Save canceled", "err"); return null; }
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = suggestedName; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return suggestedName;
+  }
+
+  let ffmpegInstance = null;
+  async function loadFfmpeg() {
+    if (ffmpegInstance) return ffmpegInstance;
+    if (typeof FFmpegWASM === "undefined" || typeof FFmpegUtil === "undefined") throw new Error("ffmpeg library not loaded (CDN blocked?)");
+    setStatus("Loading ffmpeg (first time only, ~25MB)...");
+    const ff = new FFmpegWASM.FFmpeg();
+    ff.on("log", ({ message }) => console.log("[ffmpeg]", message));
+    ff.on("progress", ({ progress }) => { if (progress > 0) setProgress(Math.min(99, progress * 100)); });
+    await ff.load({
+      coreURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js",
+      wasmURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm",
+    });
+    ffmpegInstance = ff;
+    return ff;
+  }
+
+  async function exportFast() {
+    let ff;
+    try { ff = await loadFfmpeg(); }
+    catch (err) {
+      setStatus("ffmpeg unavailable, falling back to real-time export...", "err");
+      await exportVideo(); return;
+    }
+    const { fetchFile } = FFmpegUtil;
+    showProgress(true); setProgress(0);
+    setStatus("Preparing clips...");
+
+    const inputs = [];
+    for (let i = 0; i < state.clips.length; i++) {
+      const c = state.clips[i];
+      const ext = (c.file.name.split(".").pop() || "mp4").toLowerCase();
+      const name = `in${i}.${ext}`;
+      await ff.writeFile(name, await fetchFile(c.file));
+      inputs.push({ name, clip: c });
+    }
+
+    const W = state.frame.w, H = state.frame.h;
+    const cover = $("fitCover").checked;
+    const bg = $("bgColor").value.replace("#","");
+    const scalePad = cover
+      ? `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`
+      : `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=0x${bg}`;
+
+    const vFilters = [], aFilters = [], vLabels = [], aLabels = [];
+    state.clips.forEach((c, i) => {
+      const vl = `v${i}`, al = `a${i}`;
+      const vpts = c.speed !== 1 ? `setpts=(PTS-STARTPTS)/${c.speed}` : `setpts=PTS-STARTPTS`;
+      vFilters.push(`[${i}:v]trim=${c.trimStart}:${c.trimEnd},${vpts},${scalePad},fps=30,format=yuv420p[${vl}]`);
+      const aspeed = c.speed !== 1 ? `,atempo=${Math.max(0.5, Math.min(2, c.speed))}` : "";
+      aFilters.push(`[${i}:a]atrim=${c.trimStart}:${c.trimEnd},asetpts=PTS-STARTPTS${aspeed}[${al}]`);
+      vLabels.push(`[${vl}]`); aLabels.push(`[${al}]`);
+    });
+    const concat = `${vLabels.join("")}${aLabels.join("")}concat=n=${state.clips.length}:v=1:a=1[outv][outa]`;
+    const filterComplex = [...vFilters, ...aFilters, concat].join(";");
+
+    const args = [];
+    inputs.forEach(inp => args.push("-i", inp.name));
+    args.push("-filter_complex", filterComplex, "-map", "[outv]", "-map", "[outa]");
+    args.push("-c:v", "libx264", "-preset", "ultrafast", "-crf", "23");
+    args.push("-c:a", "aac", "-b:a", "128k", "out.mp4");
+
+    setStatus("Encoding with ffmpeg (much faster than real-time)...");
+    try {
+      await ff.exec(args);
+    } catch (err) {
+      // try again without audio for clips that have no audio track
+      setStatus("Audio concat failed, retrying video-only...", "err");
+      const vOnly = [...vFilters, `${vLabels.join("")}concat=n=${state.clips.length}:v=1:a=0[outv]`].join(";");
+      const args2 = [];
+      inputs.forEach(inp => args2.push("-i", inp.name));
+      args2.push("-filter_complex", vOnly, "-map", "[outv]");
+      args2.push("-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-an", "out.mp4");
+      await ff.exec(args2);
+    }
+
+    setStatus("Finalizing...");
+    const data = await ff.readFile("out.mp4");
+    const blob = new Blob([data.buffer], { type: "video/mp4" });
+
+    for (const inp of inputs) { try { await ff.deleteFile(inp.name); } catch(e){} }
+    try { await ff.deleteFile("out.mp4"); } catch(e){}
+
+    const ts = new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
+    const saved = await saveBlob(blob, `combined_${state.frame.label}_${ts}.mp4`);
+    setProgress(100);
+    setStatus(saved ? "Done! Saved " + saved : "Export complete (not saved)", saved ? "ok" : "");
+    setTimeout(() => { showProgress(false); setProgress(0); }, 2500);
+  }
 
   async function exportVideo() {
     const fps = parseInt($("fpsSel").value), bitrate = parseInt($("qualitySel").value);
@@ -928,12 +1044,10 @@
     try { audioCtx.close(); } catch(e){}
 
     const blob = new Blob(chunks, { type: mime });
-    const url = URL.createObjectURL(blob); const a = document.createElement("a");
     const ts = new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
-    a.href = url; a.download = `combined_${state.frame.label}_${ts}.webm`; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-    setProgress(100); setStatus("Done! Downloaded "+a.download, "ok");
-    setTimeout(() => { showProgress(false); setProgress(0); }, 2000);
+    const saved = await saveBlob(blob, `combined_${state.frame.label}_${ts}.webm`);
+    setProgress(100); setStatus(saved ? "Done! Saved " + saved : "Export complete (not saved)", saved ? "ok" : "");
+    setTimeout(() => { showProgress(false); setProgress(0); }, 2500);
   }
   function showProgress(v) { $("progress").classList.toggle("active", v); }
   function setProgress(p) { const v = Math.min(100, Math.max(0, p)); $("progressBar").style.width = v+"%"; $("progressPct").textContent = v.toFixed(0)+"%"; }
