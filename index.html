@@ -453,7 +453,7 @@
   function mainClips() { return clipsInLayer(0); } // Layer 0
   function overlayClips() { return state.clips.filter(c => c.layer > 0 && typeof c.layer === 'number'); } // Layers 1-4
   function audioClips() { return state.clips.filter(c => c.layer === "audio"); }
-  function totalDur() { return mainClips().reduce((s,c) => s + effDur(c), 0); }
+  function totalDur() { return mainClips().reduce((max,c) => Math.max(max, (c.startAt||0) + effDur(c)), 0); }
 
   const $ = (id) => document.getElementById(id);
   const canvas = $("preview"), ctx = canvas.getContext("2d");
@@ -516,8 +516,12 @@
         return { ok: true, clip: { id: crypto.randomUUID(), file: f, url, video, duration: video.duration, trimStart: 0, trimEnd: video.duration, speed: 1, name: f.name, layer: 0, transform: { x: 0, y: 0, scale: 1 }, startAt: 0 } };
       } catch (err) { console.warn(err); return { ok: false, reason: err.message, name: f.name }; }
     }));
-    // preserve picker order
-    results.forEach(r => { if (r.ok) state.clips.push(r.clip); });
+    // preserve picker order; assign absolute startAt for L1 clips
+    results.forEach(r => {
+      if (!r.ok) return;
+      if (r.clip.layer === 0) r.clip.startAt = totalDur(); // place after all existing L1 content
+      state.clips.push(r.clip);
+    });
     const loaded = results.filter(r => r.ok).length;
     const skipped = total - loaded;
     renderAll();
@@ -722,14 +726,13 @@
       layerRow.appendChild(layerLabel);
 
       if (layerIdx === 0) {
-        // Layer 0: sequential clips
-        let acc = 0;
+        // Layer 0: absolute positioning via startAt (gaps preserved on delete)
         layerClips.forEach(c => {
           const d = effDur(c);
           const el = document.createElement("div");
           el.className = "tl-clip" + (c.id === state.selectedClipId ? " selected" : "");
           el.style.position = "absolute";
-          el.style.left = (acc/total*100)+"%";
+          el.style.left = ((c.startAt||0)/total*100)+"%";
           el.style.width = (d/total*100)+"%";
           el.style.top = "0"; el.style.height = "100%";
           el.title = `${c.name} · ${d.toFixed(1)}s`;
@@ -737,7 +740,6 @@
           el.addEventListener("click", (e) => { if (!e.target.classList.contains("handle")) selectClip(c.id); });
           layerRow.appendChild(el);
           el.querySelectorAll(".handle").forEach(h => h.addEventListener("mousedown", (ev) => startTrimDrag(ev, c, h.dataset.trim, total)));
-          acc += d;
         });
       } else {
         // Layers 1-4: overlays positioned by startAt
@@ -811,8 +813,7 @@
     const onMove = (e) => {
       const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const tAbs = pct * total;
-      // figure out clip start offset on timeline
-      let off = 0; for (const c of state.clips) { if (c.id === clip.id) break; off += effDur(c); }
+      const off = clip.startAt || 0;
       const localSec = (tAbs - off) * clip.speed; // in source seconds from trimStart
       if (side === "start") {
         clip.trimStart = Math.max(0, Math.min(clip.trimEnd - 0.2, clip.trimStart + localSec));
@@ -865,11 +866,10 @@
   $("ruler").addEventListener("mousedown", startScrub);
 
   function clipAtGlobal(t) {
-    let acc = 0;
     for (const c of mainClips()) {
+      const start = c.startAt || 0;
       const d = effDur(c);
-      if (t >= acc && t < acc + d) return { clip: c, localTime: t - acc, index: state.clips.indexOf(c) };
-      acc += d;
+      if (t >= start && t < start + d) return { clip: c, localTime: t - start, index: state.clips.indexOf(c) };
     }
     return { clip: null, localTime: 0, index: -1 };
   }
@@ -887,7 +887,8 @@
     // split point in source seconds
     const splitSrc = clip.trimStart + localTime * clip.speed;
     if (splitSrc <= clip.trimStart + 0.1 || splitSrc >= clip.trimEnd - 0.1) { setStatus("Playhead too close to clip edge", "err"); return; }
-    const right = { ...clip, id: crypto.randomUUID(), trimStart: splitSrc, trimEnd: clip.trimEnd };
+    const leftDur = (splitSrc - clip.trimStart) / clip.speed;
+    const right = { ...clip, id: crypto.randomUUID(), trimStart: splitSrc, trimEnd: clip.trimEnd, startAt: (clip.startAt||0) + leftDur };
     // clone a fresh <video> for the right half so they don't share state
     const v2 = document.createElement("video");
     v2.src = clip.url; v2.muted = true; v2.playsInline = true; v2.preload = "auto";
@@ -1120,20 +1121,45 @@
 
   async function playSequence(forExport, onFrame) {
     const startTime = (!forExport && state.playhead > 0) ? state.playhead : 0;
-    let globalTime = 0;
-    let first = true;
+    let globalTime = startTime;
     if (state.bgAudio && !forExport) {
       state.bgAudio.audio.volume = state.bgVol;
       state.bgAudio.audio.currentTime = Math.min(startTime, state.bgAudio.duration - 0.1);
       try { await state.bgAudio.audio.play(); } catch(e){}
     }
-    for (const clip of mainClips()) {
+    // Sort clips by startAt so gaps are handled in order
+    const clips = [...mainClips()].sort((a,b) => (a.startAt||0) - (b.startAt||0));
+    for (const clip of clips) {
+      const clipStart = clip.startAt || 0;
       const d = effDur(clip);
-      if (first && globalTime + d <= startTime) { globalTime += d; continue; }
+      if (clipStart + d <= startTime) continue; // already passed
+      if (!state.playing && !forExport) break;
+
+      // Play through any gap before this clip
+      const gapDur = clipStart - globalTime;
+      if (gapDur > 0.05) {
+        const gapStart = performance.now();
+        await new Promise(resolve => {
+          const tickGap = () => {
+            if (!state.playing && !forExport) { resolve(); return; }
+            const elapsed = (performance.now() - gapStart) / 1000;
+            if (elapsed >= gapDur) { resolve(); return; }
+            const t = globalTime + elapsed;
+            syncOverlays(t, forExport);
+            drawPlaceholder();
+            updateTimeLabel(t);
+            state.playhead = t;
+            if (onFrame) onFrame(t);
+            requestAnimationFrame(tickGap);
+          };
+          tickGap();
+        });
+        globalTime = clipStart;
+      }
+
       if (!state.playing && !forExport) break;
       const v = clip.video;
-      const localStart = first ? Math.max(0, startTime - globalTime) : 0;
-      first = false;
+      const localStart = Math.max(0, startTime - clipStart);
       const seekTarget = clip.trimStart + localStart * clip.speed;
       await new Promise((r) => {
         const onSeek = () => { v.removeEventListener("seeked", onSeek); r(); };
@@ -1151,7 +1177,7 @@
           if (!state.playing && !forExport) { v.pause(); pauseAllOverlays(); resolve(); return; }
           const elapsed = (performance.now() - startPerf)/1000;
           if (elapsed >= remaining || v.currentTime >= clip.trimEnd || v.ended) { v.pause(); resolve(); return; }
-          const t = globalTime + localStart + elapsed;
+          const t = clipStart + localStart + elapsed;
           syncOverlays(t, forExport);
           drawFrame(clip, t);
           updateTimeLabel(t);
@@ -1162,7 +1188,7 @@
         tick();
       });
       if (!forExport) v.muted = true;
-      globalTime += d;
+      globalTime = clipStart + d;
     }
     pauseAllOverlays();
     if (state.bgAudio && !state.paused) { state.bgAudio.audio.pause(); state.bgAudio.audio.currentTime = 0; }
