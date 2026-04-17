@@ -1,6 +1,6 @@
 # Video Combinator
 
-A powerful, fully client-side video editor that merges **short videos** with speed control, text overlays, and social-media framing. No server required — runs entirely in your browser.
+A powerful, fully client-side video editor that merges **short videos** with speed control, text overlays, and social-media framing. No server required, runs entirely in your browser.
 
 ## Live Demo
 
@@ -16,7 +16,7 @@ Upload any `.mp4`, `.webm`, or `.mov` files and get instant merging, text overla
 - ✍️ Timed text overlays with position, size, and color
 - 🎨 Cover/contain fit modes, background color
 - ⬇️ Export as WebM with selectable FPS & bitrate
-- 🔒 100% local — your files never leave your device
+- 🔒 100% local, your files never leave your device
 
 ## Run Locally
 
