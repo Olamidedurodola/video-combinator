@@ -202,9 +202,12 @@
     <div class="tabpane active" id="tab-media">
       <h3>My media</h3>
       <label class="drop" id="drop">
-        <input type="file" id="fileInput" accept="video/*" multiple />
-        <div><strong>Import media</strong><br/>drop or click</div>
-        <div style="font-size:11px; margin-top:4px;">Select multiple files at once · Processed locally</div>
+        <input type="file" id="fileInput" accept="video/*,.mp4,.webm,.mov,.mkv,.avi,.m4v" multiple />
+        <div><strong>Import media</strong><br/>click or drag files here</div>
+        <div style="font-size:11px; margin-top:4px; line-height:1.5;">
+          <strong>For multiple:</strong> drag several files at once,<br/>
+          or in the picker hold <kbd style="background:var(--panel);padding:1px 4px;border-radius:3px;border:1px solid var(--border);font-size:10px;">Ctrl</kbd> / <kbd style="background:var(--panel);padding:1px 4px;border-radius:3px;border:1px solid var(--border);font-size:10px;">Shift</kbd> and click
+        </div>
       </label>
       <div class="warning" style="margin-top:10px; padding:8px 10px; background:rgba(255,85,119,0.1); border:1px solid rgba(255,85,119,0.4); border-radius:8px; font-size:11px; color:#ffb3c3; line-height:1.5;">
         <strong style="color:#ff5577;">⚠ Nothing is saved.</strong> Refreshing or closing this tab will lose all your work. Export your video before leaving.
@@ -435,9 +438,15 @@
   drop.addEventListener("drop", (e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); });
 
   async function handleFiles(files) {
-    let loaded = 0, skipped = 0;
-    for (const f of files) {
-      if (!f.type.startsWith("video/")) { skipped++; continue; }
+    const list = Array.from(files);
+    console.log(`handleFiles: received ${list.length} file(s)`, list.map(f => f.name));
+    const total = list.length;
+    if (total === 0) return;
+    setStatus(`Loading ${total} file${total > 1 ? "s" : ""}...`);
+
+    const videoExt = /\.(mp4|webm|mov|mkv|avi|m4v|ogv)$/i;
+    const results = await Promise.all(list.map(async (f) => {
+      if (!f.type.startsWith("video/") && !videoExt.test(f.name)) return { ok: false, reason: "not-video", name: f.name };
       try {
         const url = URL.createObjectURL(f);
         const video = document.createElement("video");
@@ -445,16 +454,17 @@
         await new Promise((res, rej) => {
           video.onloadedmetadata = () => res();
           video.onerror = () => rej(new Error("Cannot load " + f.name));
-          setTimeout(() => rej(new Error("Timeout loading " + f.name)), 15000);
+          setTimeout(() => rej(new Error("Timeout loading " + f.name)), 30000);
         });
-        state.clips.push({ id: crypto.randomUUID(), file: f, url, video, duration: video.duration, trimStart: 0, trimEnd: video.duration, speed: 1, name: f.name });
-        loaded++;
-      } catch (err) {
-        console.warn(err); skipped++;
-      }
-    }
+        return { ok: true, clip: { id: crypto.randomUUID(), file: f, url, video, duration: video.duration, trimStart: 0, trimEnd: video.duration, speed: 1, name: f.name } };
+      } catch (err) { console.warn(err); return { ok: false, reason: err.message, name: f.name }; }
+    }));
+    // preserve picker order
+    results.forEach(r => { if (r.ok) state.clips.push(r.clip); });
+    const loaded = results.filter(r => r.ok).length;
+    const skipped = total - loaded;
     renderAll();
-    if (files.length > 1) setStatus(`Loaded ${loaded} of ${files.length} clips` + (skipped ? ` (${skipped} skipped)` : ""), loaded ? "ok" : "err");
+    setStatus(`Loaded ${loaded} of ${total} clip${total > 1 ? "s" : ""}` + (skipped ? ` (${skipped} skipped)` : ""), loaded ? "ok" : "err");
   }
 
   // ──────────── Audio ────────────
